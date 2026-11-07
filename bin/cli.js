@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * tiktok-sup CLI (v1.4.0)
+ * tiktok-sup CLI (v1.5.0)
  * Command line tool for scraping TikTok directly from tiktok.com
  */
 
@@ -14,6 +14,11 @@ import {
   scrapeComments,
   scrapeOEmbed,
   scrapeSearch,
+  scrapeUserVideos,
+  scrapeHashtagVideos,
+  scrapeSoundVideos,
+  scrapeTranscript,
+  calculateEngagement,
   downloadFile,
   downloadAllPhotos,
   downloadAudio,
@@ -27,18 +32,21 @@ const param3 = args[2];
 
 async function main() {
   if (!command || command === "--help" || command === "-h") {
-    console.log(`@kazedevid/tiktok-sup v1.4.0 - Pure TikTok Web Scraper & Media Engine
+    console.log(`@kazedevid/tiktok-sup v1.5.0 - Pure TikTok Web Scraper & Media Engine
 
 Usage:
   tiktok-sup video <url|id>          Scrape video or photo post metadata
   tiktok-sup photo <url|id>          Scrape photo carousel & image URLs
   tiktok-sup comments <url> [count]  Scrape live post comments
-  tiktok-sup oembed <url>            Generate official TikTok oEmbed iframe
-  tiktok-sup search <query> [cat]    Search creators, hashtags, and viral sounds
   tiktok-sup user <username>         Scrape user profile and statistics
-  tiktok-sup trending [category]     List trending creators, hashtags or music
+  tiktok-sup user-videos <username>  Scrape creator recent uploaded videos & engagement
   tiktok-sup hashtag <tag>           Scrape hashtag info and views
+  tiktok-sup hashtag-videos <tag>    Scrape top trending videos for a hashtag
   tiktok-sup sound <id|title>        Scrape audio track details
+  tiktok-sup sound-videos <id|url>   Scrape top trending videos using a sound
+  tiktok-sup search <query> [cat]    Search creators, hashtags, and viral sounds
+  tiktok-sup oembed <url>            Generate official TikTok oEmbed iframe
+  tiktok-sup engagement <url>        Analyze engagement rate & virality benchmark
   tiktok-sup download <url> [out]    Download no-watermark MP4 to file
   tiktok-sup download-photos <url>   Download all photos from a slideshow
   tiktok-sup audio <url> [out.mp3]   Extract and download audio track (MP3)
@@ -46,9 +54,11 @@ Usage:
 
 Examples:
   npx @kazedevid/tiktok-sup video "https://vt.tiktok.com/ZSpr3DYnu/"
+  npx @kazedevid/tiktok-sup user-videos "busetjek"
+  npx @kazedevid/tiktok-sup hashtag-videos "MLBB"
   npx @kazedevid/tiktok-sup comments "https://vt.tiktok.com/ZSpr3DYnu/" 10
+  npx @kazedevid/tiktok-sup engagement "https://vt.tiktok.com/ZSpr3DYnu/"
   npx @kazedevid/tiktok-sup search "mlbb"
-  npx @kazedevid/tiktok-sup oembed "https://vt.tiktok.com/ZSpr3DYnu/"
   npx @kazedevid/tiktok-sup audio "https://vt.tiktok.com/ZSpr3DYnu/" ./music.mp3
   npx @kazedevid/tiktok-sup batch "https://vt.tiktok.com/ZSpr3DYnu/,https://vt.tiktok.com/ZSprKn3h8/" ./media
 `);
@@ -64,6 +74,62 @@ Examples:
       console.log(`Scraping ${target} directly from tiktok.com...`);
       const data = await scrapeVideo(target);
       console.log(JSON.stringify(data, null, 2));
+    } else if (command === "user-videos") {
+      if (!target) {
+        console.error("Error: Please provide a username.");
+        process.exit(1);
+      }
+      console.log(`Scraping recent videos for @${target}...`);
+      const videos = await scrapeUserVideos(target);
+      console.log(`Found ${videos.length} recent videos:\n`);
+      for (const v of videos) {
+        console.log(`[${v.durationFormatted}] ${v.title}`);
+        console.log(`  URL: ${v.url}`);
+        console.log(`  Views: ${v.stats.views.toLocaleString()} | Likes: ${v.stats.likes.toLocaleString()} | Engagement: ${v.engagement.engagementRate}% (${v.engagement.benchmark})\n`);
+      }
+    } else if (command === "hashtag-videos") {
+      if (!target) {
+        console.error("Error: Please provide a hashtag.");
+        process.exit(1);
+      }
+      console.log(`Scraping top videos for #${target.replace(/^#/, "")}...`);
+      const videos = await scrapeHashtagVideos(target);
+      console.log(`Found ${videos.length} trending videos:\n`);
+      for (const v of videos) {
+        console.log(`- ${v.title}`);
+        console.log(`  ${v.url} (${v.stats.views.toLocaleString()} views, ${v.stats.likes.toLocaleString()} likes)\n`);
+      }
+    } else if (command === "sound-videos") {
+      if (!target) {
+        console.error("Error: Please provide a sound ID or URL.");
+        process.exit(1);
+      }
+      console.log(`Scraping top videos for sound ${target}...`);
+      const videos = await scrapeSoundVideos(target);
+      console.log(`Found ${videos.length} videos using this sound:\n`);
+      for (const v of videos) {
+        console.log(`- ${v.title} (${v.url})`);
+      }
+    } else if (command === "engagement") {
+      if (!target) {
+        console.error("Error: Please provide a TikTok URL.");
+        process.exit(1);
+      }
+      console.log(`Analyzing engagement metrics for ${target}...`);
+      const post = await scrapeVideo(target);
+      const eng = calculateEngagement(post.stats);
+      console.log(`Post ID: ${post.id}`);
+      console.log(`Author: ${post.author.nickname} (@${post.author.username})`);
+      console.log(`Views: ${post.stats.views.toLocaleString()}`);
+      console.log(`Likes: ${post.stats.likes.toLocaleString()}`);
+      console.log(`Comments: ${post.stats.comments.toLocaleString()}`);
+      console.log(`Shares: ${post.stats.shares.toLocaleString()}`);
+      console.log(`Bookmarks: ${post.stats.bookmarks.toLocaleString()}`);
+      console.log(`---------------------------------`);
+      console.log(`Engagement Rate: ${eng.engagementRate}%`);
+      console.log(`Like-to-View Ratio: ${eng.likeRatio}%`);
+      console.log(`Virality Score: ${eng.viralityScore}`);
+      console.log(`Performance Benchmark: ${eng.benchmark}`);
     } else if (command === "comments") {
       if (!target) {
         console.error("Error: Please provide a TikTok URL or post ID.");
@@ -72,12 +138,10 @@ Examples:
       const count = param3 ? parseInt(param3, 10) : 20;
       console.log(`Fetching comments for ${target} (count: ${count})...`);
       const res = await scrapeComments(target, { count });
-      console.log(`Found ${res.total} comments (showing ${res.comments.length}):
-`);
+      console.log(`Found ${res.total} comments (showing ${res.comments.length}):\n`);
       for (const c of res.comments) {
         console.log(`[${c.user.nickname} (@${c.user.username})] (${c.likes} likes):`);
-        console.log(`  ${c.text}
-`);
+        console.log(`  ${c.text}\n`);
       }
     } else if (command === "search") {
       if (!target) {
@@ -87,8 +151,7 @@ Examples:
       const cat = param3 || "all";
       console.log(`Searching tiktok.com for "${target}" (${cat})...`);
       const res = await scrapeSearch(target, cat);
-      console.log(`Found ${res.items.length} results:
-`);
+      console.log(`Found ${res.items.length} results:\n`);
       for (const item of res.items) {
         console.log(`[${item.type.toUpperCase()}] ${item.title} ${item.subTitle || ""}`);
       }

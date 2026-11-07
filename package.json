@@ -1,7 +1,7 @@
 {
   "name": "@kazedevid/tiktok-sup",
-  "version": "1.4.0",
-  "description": "Pure TikTok web scraper library for Node.js without any 3rd party APIs. Scrape videos (no watermark), photo carousels, audio MP3, live comments, oEmbed, creator profiles, discovery search, hashtags, and trending feeds directly from tiktok.com.",
+  "version": "1.5.0",
+  "description": "Pure TikTok scraper & downloader for Node.js without third-party APIs. Scrape videos (clean MP4 no-watermark), photo carousels, audio MP3, creator profile & video feed, hashtags, sound feeds, engagement analytics, captions/transcripts, and comments directly from tiktok.com.",
   "main": "index.js",
   "types": "index.d.ts",
   "type": "module",
@@ -20,12 +20,15 @@
   "keywords": [
     "tiktok",
     "tiktok-scraper",
-    "scraper",
     "tiktok-downloader",
     "tiktok-api",
-    "tiktok-web",
+    "tiktok-feed",
+    "creator-videos",
+    "hashtag-scraper",
+    "sound-scraper",
+    "engagement-calculator",
+    "tiktok-transcript",
     "no-watermark",
-    "video-downloader",
     "kazedevid"
   ],
   "author": "KazeDevID",

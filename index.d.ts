@@ -1,5 +1,5 @@
 /**
- * TypeScript Declarations for @kazedevid/tiktok-sup v1.4.0
+ * TypeScript Declarations for @kazedevid/tiktok-sup v1.5.0
  */
 
 export interface DownloadOptions {
@@ -150,6 +150,52 @@ export interface TikTokSearchResult {
   items: TikTokSearchResultItem[];
 }
 
+export interface TikTokEngagementAnalytics {
+  engagementRate: number;
+  likeRatio: number;
+  viralityScore: number;
+  benchmark: "Low" | "Average" | "High" | "Viral";
+}
+
+export interface TikTokFeedVideo {
+  id: string;
+  url: string;
+  title: string;
+  description: string;
+  thumbnail?: string;
+  uploadDate: string;
+  duration: number;
+  durationFormatted: string;
+  stats: {
+    views: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    bookmarks: number;
+  };
+  audio?: {
+    title?: string;
+    author?: string;
+    url?: string;
+  };
+  genre?: string[];
+  locationCreated?: string;
+  engagement: TikTokEngagementAnalytics;
+}
+
+export interface TikTokSubtitleCue {
+  start: string;
+  end: string;
+  text: string;
+}
+
+export interface TikTokTranscriptResult {
+  language?: string;
+  wordCount: number;
+  fullText: string;
+  cues: TikTokSubtitleCue[];
+}
+
 export interface TikTokComment {
   cid: string;
   text: string;
@@ -176,6 +222,7 @@ export interface TikTokVideoResult {
   createTimeFormatted: string;
   author: TikTokAuthor;
   stats: TikTokStats;
+  engagement?: TikTokEngagementAnalytics;
   video?: TikTokVideoMedia;
   photos?: string[];
   photoDetails?: TikTokPhotoItem[];
@@ -189,6 +236,7 @@ export interface TikTokVideoResult {
   downloadAudioBuffer?: () => Promise<Buffer>;
   getComments?: (count?: number, cursor?: number) => Promise<TikTokCommentsResult>;
   getOEmbed?: () => Promise<TikTokOEmbed>;
+  getTranscript?: () => Promise<TikTokTranscriptResult | null>;
 }
 
 export interface TikTokUserProfile {
@@ -214,6 +262,7 @@ export interface TikTokUserProfile {
     title: string;
     desc: string;
   };
+  getVideos?: () => Promise<TikTokFeedVideo[]>;
 }
 
 export interface TikTokTrendingItem {
@@ -231,6 +280,7 @@ export interface TikTokHashtagInfo {
   views?: string;
   desc?: string;
   cover?: string;
+  getVideos?: () => Promise<TikTokFeedVideo[]>;
 }
 
 export interface TikTokSoundInfo {
@@ -240,6 +290,7 @@ export interface TikTokSoundInfo {
   playUrl?: string;
   cover?: string;
   duration?: number;
+  getVideos?: () => Promise<TikTokFeedVideo[]>;
 }
 
 export const MOBILE_USER_AGENT: string;
@@ -278,6 +329,19 @@ export function scrapeSearch(
   query: string,
   category?: "all" | "creator" | "hashtag" | "music"
 ): Promise<TikTokSearchResult>;
+
+export function scrapeUserVideos(inputUsername: string): Promise<TikTokFeedVideo[]>;
+export function scrapeHashtagVideos(tag: string): Promise<TikTokFeedVideo[]>;
+export function scrapeSoundVideos(soundIdOrUrl: string): Promise<TikTokFeedVideo[]>;
+export function scrapeTranscript(subtitleUrlOrText: string): Promise<TikTokTranscriptResult>;
+export function calculateEngagement(stats: {
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  bookmarks: number;
+}): TikTokEngagementAnalytics;
+export function parseIsoDuration(durationStr?: string): number;
 
 export function extractHashtags(text: string): string[];
 export function extractMentions(text: string): string[];
@@ -344,6 +408,11 @@ declare const _default: {
   scrapeComments: typeof scrapeComments;
   scrapeOEmbed: typeof scrapeOEmbed;
   scrapeSearch: typeof scrapeSearch;
+  scrapeUserVideos: typeof scrapeUserVideos;
+  scrapeHashtagVideos: typeof scrapeHashtagVideos;
+  scrapeSoundVideos: typeof scrapeSoundVideos;
+  scrapeTranscript: typeof scrapeTranscript;
+  calculateEngagement: typeof calculateEngagement;
   extractHashtags: typeof extractHashtags;
   extractMentions: typeof extractMentions;
   downloadFile: typeof downloadFile;
@@ -360,4 +429,4 @@ declare const _default: {
   extractCookieHeaders: typeof extractCookieHeaders;
 };
 
-export default _default;
+export default _default;\n

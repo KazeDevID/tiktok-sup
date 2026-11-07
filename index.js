@@ -488,6 +488,11 @@ async function scrapeVideo(inputUrl) {
   }
   result.getComments = (count = 20, cursor = 0) => scrapeComments(result.id, { count, cursor, sessionCookies: cookieJar });
   result.getOEmbed = () => scrapeOEmbed(result.url);
+  result.engagement = calculateEngagement(stats);
+  result.getTranscript = () => {
+    const subUrl = video?.subtitles?.[0]?.url;
+    return subUrl ? scrapeTranscript(subUrl) : Promise.resolve(null);
+  };
   return result;
 }
 async function scrapeUser(inputUsername) {
@@ -536,7 +541,8 @@ async function scrapeUser(inputUsername) {
             videoCount: Number(s.videoCount || 0),
             friendCount: Number(s.friendCount || 0)
           },
-          shareMeta: userDetail.shareMeta
+          shareMeta: userDetail.shareMeta,
+          getVideos: () => scrapeUserVideos(cleanUsername)
         };
       }
     } catch (_) {
@@ -598,13 +604,15 @@ async function scrapeHashtag(tag) {
       title: matched.title,
       views: matched.subTitle,
       desc: matched.desc,
-      cover: matched.cover
+      cover: matched.cover,
+      getVideos: () => scrapeHashtagVideos(cleanTag)
     };
   }
   return {
     id: cleanTag,
     title: `#${cleanTag}`,
-    views: "Trending"
+    views: "Trending",
+    getVideos: () => scrapeHashtagVideos(cleanTag)
   };
 }
 async function scrapeSound(soundIdOrUrl) {
@@ -618,12 +626,14 @@ async function scrapeSound(soundIdOrUrl) {
       id: matched.id,
       title: matched.title,
       author: matched.subTitle,
-      cover: matched.cover
+      cover: matched.cover,
+      getVideos: () => scrapeSoundVideos(clean)
     };
   }
   return {
     id: clean,
-    title: "Soundtrack"
+    title: "Soundtrack",
+    getVideos: () => scrapeSoundVideos(clean)
   };
 }
 async function fetchMediaStream(mediaUrl, cookieStr = "", rangeHeader, userAgent = MOBILE_USER_AGENT) {
@@ -940,11 +950,177 @@ async function scrapeSearch(query, category = "all") {
     items
   };
 }
+function parseIsoDuration(durationStr) {
+  if (!durationStr) return 0;
+  const match = durationStr.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  const hours = parseInt(match[1] || "0", 10);
+  const minutes = parseInt(match[2] || "0", 10);
+  const seconds = parseInt(match[3] || "0", 10);
+  return hours * 3600 + minutes * 60 + seconds;
+}
+function calculateEngagement(stats) {
+  const views = Number(stats.views || 0);
+  const likes = Number(stats.likes || 0);
+  const comments = Number(stats.comments || 0);
+  const shares = Number(stats.shares || 0);
+  const bookmarks = Number(stats.bookmarks || 0);
+  const totalEngagements = likes + comments + shares + bookmarks;
+  const rate = views > 0 ? totalEngagements / views * 100 : 0;
+  const likeRatio = views > 0 ? likes / views * 100 : 0;
+  const virality = views > 0 ? (shares * 3 + bookmarks * 2 + likes) / views * 100 : 0;
+  let benchmark = "Average";
+  if (rate >= 15 || virality >= 25) {
+    benchmark = "Viral";
+  } else if (rate >= 8) {
+    benchmark = "High";
+  } else if (rate < 3) {
+    benchmark = "Low";
+  }
+  return {
+    engagementRate: parseFloat(rate.toFixed(2)),
+    likeRatio: parseFloat(likeRatio.toFixed(2)),
+    viralityScore: parseFloat(virality.toFixed(2)),
+    benchmark
+  };
+}
+function parseItemListHtml(html) {
+  const match = html.match(
+    /<script type="application\/ld\+json" id="ItemList">([\s\S]*?)<\/script>/
+  );
+  if (!match) return [];
+  try {
+    const json = JSON.parse(match[1]);
+    const elements = Array.isArray(json.itemListElement) ? json.itemListElement : [];
+    return elements.map((el) => {
+      const idMatch = el.url?.match(/\/(video|photo)\/(\d{15,22})/);
+      const videoId = idMatch?.[2] || String(el.url || "");
+      const rawInteractions = el.interactionStatistic || [];
+      let views = 0;
+      let likes = 0;
+      let bookmarks = 0;
+      let shares = 0;
+      const comments = parseInt(el.commentCount || "0", 10);
+      if (Array.isArray(rawInteractions)) {
+        for (const inter of rawInteractions) {
+          const type = String(inter.interactionType?.["@type"] || "");
+          const count = Number(inter.userInteractionCount || 0);
+          if (type.includes("WatchAction")) views = count;
+          else if (type.includes("LikeAction")) likes = count;
+          else if (type.includes("SaveAction")) bookmarks = count;
+          else if (type.includes("ShareAction")) shares = count;
+        }
+      }
+      const stats = { views, likes, comments, shares, bookmarks };
+      const durationSeconds = parseIsoDuration(el.duration);
+      const mins = Math.floor(durationSeconds / 60);
+      const secs = durationSeconds % 60;
+      const durationFormatted = `${mins}:${secs.toString().padStart(2, "0")}`;
+      return {
+        id: videoId,
+        url: String(el.url || ""),
+        title: String(el.name || "").replace(/ \| TikTok$/, ""),
+        description: String(el.description || ""),
+        thumbnail: String(el.thumbnailUrl?.[0] || ""),
+        uploadDate: String(el.uploadDate || ""),
+        duration: durationSeconds,
+        durationFormatted,
+        stats,
+        audio: el.audio ? {
+          title: el.audio.name,
+          author: el.audio.author,
+          url: el.audio.mainEntityOfPage?.["@id"]
+        } : void 0,
+        genre: Array.isArray(el.genre) ? el.genre : void 0,
+        locationCreated: el.locationCreated,
+        engagement: calculateEngagement(stats)
+      };
+    });
+  } catch (_) {
+    return [];
+  }
+}
+async function scrapeUserVideos(inputUsername) {
+  const cleanUsername = String(inputUsername || "").trim().replace(/^https?:\/\/(www\.)?tiktok\.com\/@?/, "").replace(/^@+/, "").split("/")[0].split("?")[0];
+  if (!cleanUsername) throw new Error('Parameter "inputUsername" is required');
+  const profileUrl = `https://www.tiktok.com/@${cleanUsername}`;
+  const res = await fetch(profileUrl, {
+    headers: {
+      "User-Agent": BOT_USER_AGENT,
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9"
+    }
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch user feed: HTTP ${res.status}`);
+  }
+  const html = await res.text();
+  return parseItemListHtml(html);
+}
+async function scrapeHashtagVideos(tag) {
+  const cleanTag = String(tag || "").trim().replace(/^#/, "");
+  const url = `https://www.tiktok.com/tag/${encodeURIComponent(cleanTag)}`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": BOT_USER_AGENT,
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+  });
+  if (!res.ok) throw new Error(`Failed to fetch hashtag videos: HTTP ${res.status}`);
+  return parseItemListHtml(await res.text());
+}
+async function scrapeSoundVideos(soundIdOrUrl) {
+  let target = String(soundIdOrUrl || "").trim();
+  if (!target.startsWith("http")) {
+    target = `https://www.tiktok.com/music/track-${target}`;
+  }
+  const res = await fetch(target, {
+    headers: {
+      "User-Agent": BOT_USER_AGENT,
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+  });
+  if (!res.ok) throw new Error(`Failed to fetch sound videos: HTTP ${res.status}`);
+  return parseItemListHtml(await res.text());
+}
+async function scrapeTranscript(subtitleUrlOrText) {
+  let content = subtitleUrlOrText;
+  if (subtitleUrlOrText.startsWith("http")) {
+    const res = await fetch(subtitleUrlOrText, {
+      headers: { "User-Agent": DESKTOP_USER_AGENT }
+    });
+    content = await res.text();
+  }
+  const cues = [];
+  const cueBlocks = content.split(/\r?\n\r?\n/);
+  for (const block of cueBlocks) {
+    const lines = block.trim().split(/\r?\n/);
+    const timeLine = lines.find((l) => l.includes("-->"));
+    if (timeLine) {
+      const parts = timeLine.split("-->");
+      const start = parts[0]?.trim() || "";
+      const end = parts[1]?.trim()?.split(" ")[0] || "";
+      const textLines = lines.filter((l) => l !== timeLine && !l.match(/^\d+$/));
+      const text = textLines.join(" ").replace(/<[^>]+>/g, "").trim();
+      if (text) {
+        cues.push({ start, end, text });
+      }
+    }
+  }
+  const fullText = cues.map((c) => c.text).join(" ");
+  const words = fullText.split(/\s+/).filter(Boolean);
+  return {
+    wordCount: words.length,
+    fullText,
+    cues
+  };
+}
 export {
   BOT_USER_AGENT,
   DESKTOP_USER_AGENT,
   MOBILE_USER_AGENT,
   batchDownload,
+  calculateEngagement,
   downloadAllPhotos,
   downloadAudio,
   downloadAudioBuffer,
@@ -957,14 +1133,19 @@ export {
   fetchMediaStream,
   findItemStruct,
   mergeCookies,
+  parseIsoDuration,
   parseTikTokUrl,
   resolveUrl,
   scrapeComments,
   scrapeHashtag,
+  scrapeHashtagVideos,
   scrapeOEmbed,
   scrapeSearch,
   scrapeSound,
+  scrapeSoundVideos,
+  scrapeTranscript,
   scrapeTrending,
   scrapeUser,
+  scrapeUserVideos,
   scrapeVideo
 };

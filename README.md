@@ -4,264 +4,235 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg?style=flat-square)](https://nodejs.org/)
 
-A pure Node.js scraper library and CLI for **tiktok.com**. 
-Extracts videos (clean no-watermark MP4 & watermarked MP4), **photo slideshows / carousels (HD images)**, creator profiles, MP3 soundtrack audio, subtitle closed captions, comments, hashtags, and trending topics directly from official TikTok web pages.
+A pure Node.js scraper library and CLI for **tiktok.com**. Extracts videos (clean no-watermark MP4 & watermarked MP4), **photo slideshows / carousels (HD images)**, creator profile feeds, user recent videos, hashtag feeds, sound feeds, engagement analytics, MP3 soundtracks, subtitle closed captions & transcripts, comments, and trending topics directly from official TikTok web pages.
 
 **No 3rd-party APIs. No proxies required. 100% Pure tiktok.com web parsing.**
 
 ---
 
-## ✨ Features
+## Features
 
-- 🎥 **Video Scraper**: Extracts clean, high-resolution MP4 streams without watermarks (`video.noWatermarkUrl`) and standard watermarked streams.
-- 🖼️ **Photo Slideshow Scraper**: Automatically identifies photo carousels (`postType === 'photo'`), providing array of high-definition images with backup CDN links.
-- 🎵 **Soundtrack Audio**: Direct MP3 audio streams for background soundtracks.
-- 📝 **Subtitles & Captions**: Extracts closed captions (`.vtt`, `.srt`) across all available languages.
-- 👤 **Creator Profile**: Stalk/scrape follower count, following count, total likes, video count, bio, and high-res avatars.
-- 💬 **Comment Trees**: Extracts top comments with author metadata and like counts.
-- 🔥 **Discover & Trending**: Live viral creators, trending hashtags, and popular music tracks.
-- 💾 **Downloader Helpers**: Built-in `downloadFile()`, `downloadBuffer()`, `downloadPhoto()`, and `downloadAllPhotos()`.
-- ⚡ **Dual Extraction Engine**: Mobile Safari rehydration parser backed by Googlebot Schema.org engine for bypass resilience.
-- 💻 **CLI Executable**: Run commands right in your terminal with `npx @kazedevid/tiktok-sup`.
-- 📘 **TypeScript Ready**: Full type definitions included (`index.d.ts`).
+- Video Scraper & Downloader: Extracts clean, high-resolution MP4 streams without watermarks (`video.noWatermarkUrl`) and standard watermarked streams.
+- Photo Slideshow Scraper: Automatically identifies photo carousels (`postType === "photo"`), providing an array of high-definition images with batch downloaders.
+- Creator Video Feed Scraper: Extract all recent uploaded videos from any creator (`scrapeUserVideos("@username")`) with view counts, likes, duration, and direct video links.
+- Hashtag Video Scraper: Extract top trending videos under any hashtag (`scrapeHashtagVideos("mlbb")`).
+- Sound & Music Feed Scraper: Extract videos created using a specific audio track (`scrapeSoundVideos("soundId")`).
+- Engagement & Virality Calculator: Calculate engagement rate %, like-to-view ratio %, virality score, and performance tier (`Viral`, `High`, `Average`, `Low`).
+- Subtitle Transcripts Parser: WebVTT/SRT closed-caption parser returning timestamped dialogue cues and full-text transcripts.
+- Creator Profile Stalker: Scrape follower count, following count, total likes, video count, bio, verified status, and high-res avatars.
+- Comment Trees: Extracts top comments with author metadata and like counts.
+- Discover & Trending: Live viral creators, trending hashtags, and popular music tracks.
+- Downloader Helpers: Built-in `downloadFile()`, `downloadBuffer()`, `downloadPhoto()`, and `downloadAllPhotos()`.
+- Dual Extraction Engine: Mobile Safari rehydration parser backed by Googlebot Schema.org engine for bypass resilience.
+- CLI Executable: Run commands right in your terminal with `npx @kazedevid/tiktok-sup`.
+- TypeScript Ready: Full type definitions included (`index.d.ts`).
 
 ---
 
-## 📦 Installation
+## Installation
 
 ```bash
 npm install @kazedevid/tiktok-sup
 ```
 
----
-
-## 🚀 Quick Start
-
-### 1. Scrape Video & Download No-Watermark MP4
-
-```javascript
-import { scrapeVideo, downloadFile } from '@kazedevid/tiktok-sup';
-
-const post = await scrapeVideo('https://www.tiktok.com/@zachking/video/6768504823336815877');
-
-console.log('Post Type:', post.postType); // 'video'
-console.log('Title:', post.description);
-console.log('Author:', post.author.nickname, '(@' + post.author.username + ')');
-console.log('Views:', post.stats.views.toLocaleString());
-console.log('Clean MP4:', post.video?.noWatermarkUrl);
-
-// Option A: Direct one-line download (recommended - auto attaches session cookies)
-await post.download('clean_video.mp4');
-console.log('Saved clean_video.mp4!');
-
-// Option B: Using downloadFile helper
-const cleanUrl = post.video.noWatermarkUrl || post.video.playUrl;
-await downloadFile(cleanUrl, 'clean_video.mp4', post.sessionCookies);
-
-// Option C: In-memory Buffer (e.g. for Telegram bot or Discord bot)
-const videoBuffer = await post.downloadBuffer();
-console.log('Downloaded buffer bytes:', videoBuffer.length);
-```
-
-### 2. Scrape Photo Slideshow / Carousel
-
-```javascript
-import { scrapeVideo, downloadAllPhotos } from '@kazedevid/tiktok-sup';
-
-const post = await scrapeVideo('https://www.tiktok.com/@tiktok/photo/7703881354496281863');
-
-console.log('Post Type:', post.postType); // 'photo'
-console.log('Is Photo:', post.isPhoto); // true
-console.log(`Total Slides: ${post.photos.length}`);
-
-// Download all photos into a folder
-const savedFiles = await downloadAllPhotos(post.photos, './my_slides', post.sessionCookies);
-console.log('Downloaded files:', savedFiles);
-```
-
-### 3. In-Memory Buffer (Bots & Cloud Storage)
-
-```javascript
-import { scrapeVideo, downloadBuffer } from '@kazedevid/tiktok-sup';
-
-const post = await scrapeVideo('https://vt.tiktok.com/...');
-const buffer = await downloadBuffer(post.video.playUrl, post.sessionCookies);
-
-// Ready for Telegram, Discord bot, or S3 upload
-console.log('Buffer bytes:', buffer.length);
-```
-
-### 4. Scrape Creator Profile
-
-```javascript
-import { scrapeUser } from '@kazedevid/tiktok-sup';
-
-const profile = await scrapeUser('mrbeast');
-
-console.log('Nickname:', profile.nickname);
-console.log('Followers:', profile.stats.followerCount.toLocaleString());
-console.log('Total Likes:', profile.stats.heartCount.toLocaleString());
-console.log('Bio:', profile.signature);
-```
-
-### 5. Scrape Trending Discovery
-
-```javascript
-import { scrapeTrending } from '@kazedevid/tiktok-sup';
-
-const hashtags = await scrapeTrending('hashtag');
-console.log('Trending hashtags:', hashtags.map(h => h.title));
-
-const creators = await scrapeTrending('creator');
-console.log('Top creators:', creators.map(c => c.title));
-```
-
----
-
-
-### 💬 7. Scrape Real Post Comments (v1.4.0)
-
-Extract real user comments with likes, avatars, reply counts, and pagination cursor directly from tiktok.com without any API keys.
-
-```javascript
-import { scrapeComments, scrapeVideo } from "@kazedevid/tiktok-sup";
-
-// Method A: Direct function call with URL or post ID
-const commentsData = await scrapeComments("https://vt.tiktok.com/ZSpr3DYnu/", { count: 20 });
-console.log("Total Comments:", commentsData.total);
-for (const c of commentsData.comments) {
-  console.log(`[${c.user.nickname} (@${c.user.username})] (${c.likes} likes): ${c.text}`);
-}
-
-// Method B: Directly from scraped post object
-const post = await scrapeVideo("https://vt.tiktok.com/ZSpr3DYnu/");
-const comments = await post.getComments(10);
-console.log("Loaded comments:", comments.comments.length);
-```
-
----
-
-### 🔍 8. Keyword Discovery Search (v1.4.0)
-
-Search tiktok.com discovery network for matching creators, hashtags, and viral sounds.
-
-```javascript
-import { scrapeSearch } from "@kazedevid/tiktok-sup";
-
-const results = await scrapeSearch("mobile legends", "all");
-// results.items contains creators, hashtags with total views, and soundtracks with playable audio URLs!
-console.log("Found results:", results.items.length);
-```
-
----
-
-### 🌐 9. Official TikTok oEmbed (v1.4.0)
-
-Generate standard responsive iframe embed codes compliant with TikTok oEmbed.
-
-```javascript
-import { scrapeOEmbed } from "@kazedevid/tiktok-sup";
-
-const embed = await scrapeOEmbed("https://vt.tiktok.com/ZSpr3DYnu/");
-console.log("Iframe HTML:", embed.html);
-```
-
----
-
-### 🏷️ 10. Hashtags & Mentions Parsing
-
-Every scraped post automatically includes extracted hashtags and user mentions:
-
-```javascript
-const post = await scrapeVideo("https://vt.tiktok.com/ZSpr3DYnu/");
-console.log("Hashtags:", post.hashtags); // ["jekkslwly", "teamslwly", "MLBB"]
-console.log("Mentions:", post.mentions);
-```
-
-## 💻 CLI Usage
-
-You can run the scraper directly in your terminal using `npx`:
+Or run via npx:
 
 ```bash
-# Scrape video or photo metadata
-npx @kazedevid/tiktok-sup video "https://www.tiktok.com/@zachking/video/6768504823336815877"
-
-# Scrape photo slideshow
-npx @kazedevid/tiktok-sup photo "https://www.tiktok.com/@user/photo/..."
-
-# Download clean video
-npx @kazedevid/tiktok-sup download "https://vt.tiktok.com/..." ./clean.mp4
-
-# Download all photos from a slideshow
-npx @kazedevid/tiktok-sup download-photos "https://www.tiktok.com/@user/photo/..." ./my_folder
-
-# Scrape creator profile
-npx @kazedevid/tiktok-sup user mrbeast
-
-# Scrape trending topics
-npx @kazedevid/tiktok-sup trending hashtag
-
-# Inspect hashtag
-npx @kazedevid/tiktok-sup hashtag fyp
+npx @kazedevid/tiktok-sup --help
 ```
 
 ---
 
-## 📖 API Reference (v1.4.0)
+## Quick Start
 
-| Function | Arguments | Returns | Description |
-| :--- | :--- | :--- | :--- |
-| `scrapeVideo(url)` | `url: string` | `Promise<TikTokVideoResult>` | Scrapes video (no-watermark MP4) or photo post (all slide images), author, stats, and comments. |
-| `scrapeUser(username)` | `username: string` | `Promise<TikTokUserProfile>` | Extracts followers, following, likes, bio, and avatar. |
-| `scrapeTrending(category?)` | `category?: 'all' \| 'creator' \| 'hashtag' \| 'music'` | `Promise<TikTokTrendingItem[]>` | Live discover feed from tiktok.com. |
-| `scrapeHashtag(tag)` | `tag: string` | `Promise<TikTokHashtagInfo>` | Challenge view count, title, and cover. |
-| `scrapeSound(idOrUrl)` | `idOrUrl: string` | `Promise<TikTokSoundInfo>` | Soundtrack title, author, and audio URL. |
-| `downloadFile(url, out, cookies?)` | `url, outputPath, cookies?` | `Promise<string>` | Downloads media file to local disk. |
-| `downloadBuffer(url, cookies?)` | `url, cookies?` | `Promise<Buffer>` | In-memory Buffer for bots. |
-| `downloadPhoto(url, out, cookies?)` | `url, outputPath, cookies?` | `Promise<string>` | Downloads single photo slide. |
-| `downloadAllPhotos(urls, dir, cookies?)` | `urls: string[], outDir, cookies?` | `Promise<string[]>` | Batch downloads all photo slides. |
-| `parseTikTokUrl(url)` | `url: string` | `object` | Normalizes IDs, shortlinks, video and photo URLs. |
+### 1. Scrape Video & Download Clean MP4 (No Watermark)
 
----
+```javascript
+import { scrapeVideo, downloadFile } from "@kazedevid/tiktok-sup";
 
+const post = await scrapeVideo("https://vt.tiktok.com/ZSprKn3h8/");
 
----
+console.log("Post Type:", post.postType); // "video" or "photo"
+console.log("Title:", post.description);
+console.log("Author:", post.author.nickname, "(@" + post.author.username + ")");
+console.log("Views:", post.stats.views.toLocaleString());
+console.log("Engagement Rate:", post.engagement.engagementRate + "%");
 
-
----
-
+// Download clean no-watermark MP4 directly
+const cleanUrl = post.video.noWatermarkUrl || post.video.playUrl;
+await downloadFile(cleanUrl, "clean_video.mp4", post.sessionCookies);
+console.log("Saved clean_video.mp4!");
+```
 
 ---
 
-## 🛠️ What's New in v1.4.0
+### 2. Scrape Creator Recent Video Feed
 
-- 🎵 **Dedicated Audio Track Extractor & Downloader**:
-  - `await post.downloadAudio("soundtrack.mp3")` — Extract and download clean background music / sound stream.
-  - `await post.downloadAudioBuffer()` — In-memory audio buffer for bot voice messages or transcription.
-  - `downloadAudio(soundUrl, outputPath, cookieStr)` helper.
-  - CLI command: `npx @kazedevid/tiktok-sup audio <url> [out.mp3]`.
-- 📦 **Batch Downloader Helper**:
-  - `await batchDownload(urls, outputDir, { onProgress })` — Automatically downloads lists of TikTok video and photo posts in batch with progress callbacks.
-  - CLI command: `npx @kazedevid/tiktok-sup batch <url1,url2,...> [dir]`.
-- 🎚️ **Quality & Bitrate Gear Selection**:
-  - `await post.download("video.mp4", { quality: "highest" | "1080p" | "720p" })`.
+Scrape recent videos published by any TikTok creator with play counts, likes, duration, and direct links:
 
-## 🛠️ What's New in v1.4.0
+```javascript
+import { scrapeUserVideos } from "@kazedevid/tiktok-sup";
 
-- 🐛 **Fixed "Could not locate TikTok post data" on Mobile Reflow & Photo Posts**:
-  - TikTok mobile reflow pages and photo carousels store post state under `webapp.reflow.video.detail` rather than desktop `webapp.video-detail`.
-  - Added recursive JSON state extractor (`findItemStruct`) and `__NEXT_DATA__` support to guarantee zero missed posts across all TikTok web layout variations.
-  - Successfully resolves short links like `https://vt.tiktok.com/ZSprKn3h8/` and full photo posts directly on the primary page request.
+const feed = await scrapeUserVideos("@zachking");
 
-## 🛠️ What's New in v1.4.0
+console.log(`Creator: ${feed.author.nickname} (@${feed.author.username})`);
+console.log(`Found ${feed.totalVideos} recent videos:`);
 
-- 🐛 **Fixed HTTP 403 Forbidden on CDN Video Downloads**: Resolved Akamai CDN authentication rejections by implementing a unified Cookie Jar that guarantees `tt_chain_token`, `ttwid`, and session tokens match TikTok's signed video CDN URLs (`tk=tt_chain_token`).
-- 🚀 **New Direct Download Helpers**:
-  - `await post.download("video.mp4")` - Automatically downloads the no-watermark stream with verified session cookies.
-  - `await post.downloadBuffer()` - Downloads stream into an in-memory `Buffer` for bots, cloud storage (S3/GCS), or APIs.
-  - `await post.downloadPhotos("./dir")` - Directly downloads all carousel images.
-- ⚡ **Intelligent Byte-Range Fallback**: `fetchMediaStream()` now automatically adds `Range: bytes=0-` fallback when CDN nodes challenge standard GET requests.
+feed.videos.forEach((vid, i) => {
+  console.log(`[${i + 1}] ${vid.description.slice(0, 40)}...`);
+  console.log(`    Duration: ${vid.durationFormatted} | Views: ${vid.views.toLocaleString()} | Likes: ${vid.likes.toLocaleString()}`);
+  console.log(`    URL: ${vid.url}`);
+  console.log(`    Engagement: ${vid.engagementRate}% (${vid.benchmark})`);
+});
+```
 
-## 📄 License
+---
+
+### 3. Scrape Hashtag Trending Videos
+
+Fetch top videos currently trending under a specific hashtag:
+
+```javascript
+import { scrapeHashtagVideos } from "@kazedevid/tiktok-sup";
+
+const tagFeed = await scrapeHashtagVideos("mobilelegends");
+
+console.log(`Hashtag #${tagFeed.tag} - ${tagFeed.videos.length} videos found`);
+for (const vid of tagFeed.videos) {
+  console.log(`- ${vid.description.slice(0, 50)} by @${vid.author.username} (${vid.views.toLocaleString()} views)`);
+}
+```
+
+---
+
+### 4. Scrape Sound / Music Feed
+
+Discover videos that used a specific sound or song:
+
+```javascript
+import { scrapeSoundVideos } from "@kazedevid/tiktok-sup";
+
+const soundFeed = await scrapeSoundVideos("7123456789012345678");
+console.log(`Music: ${soundFeed.musicTitle} (${soundFeed.videos.length} videos)`);
+```
+
+---
+
+### 5. Engagement & Virality Analytics
+
+Calculate detailed engagement performance from raw interaction counts:
+
+```javascript
+import { calculateEngagement } from "@kazedevid/tiktok-sup";
+
+const metrics = calculateEngagement({
+  views: 531200,
+  likes: 42100,
+  comments: 890,
+  shares: 1200,
+  saves: 3400
+});
+
+console.log(metrics);
+/*
+{
+  views: 531200,
+  likes: 42100,
+  comments: 890,
+  shares: 1200,
+  saves: 3400,
+  totalEngagements: 47590,
+  engagementRate: 8.96,
+  likeRatio: 7.93,
+  viralityScore: 41.2,
+  benchmark: "High"
+}
+*/
+```
+
+---
+
+### 6. Subtitles & Transcript Parser
+
+Extract timestamped dialogue and full text from closed-caption URLs:
+
+```javascript
+import { scrapeVideo, scrapeTranscript } from "@kazedevid/tiktok-sup";
+
+const post = await scrapeVideo("https://www.tiktok.com/@creator/video/123456789");
+if (post.subtitles && post.subtitles.length > 0) {
+  const transcript = await scrapeTranscript(post.subtitles[0].url);
+  console.log(`Total words: ${transcript.totalWords}`);
+  console.log(transcript.fullText);
+}
+```
+
+---
+
+### 7. Scrape Photo Slideshows (Carousels)
+
+```javascript
+import { scrapeVideo, downloadAllPhotos } from "@kazedevid/tiktok-sup";
+
+const post = await scrapeVideo("https://www.tiktok.com/@creator/video/123456789");
+
+if (post.postType === "photo" && post.photos) {
+  console.log(`Found ${post.photos.length} photos!`);
+  // Download all photos into a folder
+  const savedFiles = await downloadAllPhotos(post.photos, "./my-photos", "slide", post.sessionCookies);
+  console.log(`Saved ${savedFiles.length} photos to ./my-photos`);
+}
+```
+
+---
+
+### 8. Stalk / Scrape Creator Profile
+
+```javascript
+import { scrapeUser } from "@kazedevid/tiktok-sup";
+
+const user = await scrapeUser("@zachking");
+console.log("Username:", user.username);
+console.log("Followers:", user.followers.toLocaleString());
+console.log("Total Likes:", user.likes.toLocaleString());
+console.log("Verified:", user.verified);
+
+// You can also get their recent videos directly:
+const feed = await user.getVideos();
+console.log(`Fetched ${feed.videos.length} videos from profile.`);
+```
+
+---
+
+## CLI Usage
+
+You can run `@kazedevid/tiktok-sup` directly via npx without writing code:
+
+```bash
+# Scrape video info
+npx @kazedevid/tiktok-sup video https://vt.tiktok.com/ZSprKn3h8/
+
+# Download clean video (no watermark)
+npx @kazedevid/tiktok-sup download https://vt.tiktok.com/ZSprKn3h8/ -o clean.mp4
+
+# Scrape creator profile
+npx @kazedevid/tiktok-sup user @zachking
+
+# Scrape creator recent videos feed
+npx @kazedevid/tiktok-sup user-videos @zachking -l 10
+
+# Scrape hashtag trending videos
+npx @kazedevid/tiktok-sup hashtag-videos mlbb -l 10
+
+# Calculate engagement analytics
+npx @kazedevid/tiktok-sup engagement --views 100000 --likes 12000 --shares 800 --comments 400
+
+# Discover viral creators and trending hashtags
+npx @kazedevid/tiktok-sup discover
+```
+
+---
+
+## License
 
 MIT © [KazeDevID](https://github.com/KazeDevID)
