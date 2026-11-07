@@ -29,6 +29,58 @@ export const DESKTOP_USER_AGENT =
  * Parses and normalizes any TikTok URL, short link, or raw ID
  * @param {string} inputUrl
  */
+
+/**
+ * Merges cookie strings and Set-Cookie headers into a single normalized Cookie header string
+ * @param {string} [existingCookieStr]
+ * @param {string[]|string} [newCookieHeaders]
+ * @returns {string}
+ */
+export function mergeCookies(existingCookieStr = '', newCookieHeaders = []) {
+  const jar = new Map();
+  if (existingCookieStr) {
+    for (const part of String(existingCookieStr).split(';')) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx !== -1) {
+        jar.set(trimmed.slice(0, eqIdx).trim(), trimmed.slice(eqIdx + 1).trim());
+      }
+    }
+  }
+  const headersList = Array.isArray(newCookieHeaders)
+    ? newCookieHeaders
+    : newCookieHeaders
+    ? [newCookieHeaders]
+    : [];
+  for (const item of headersList) {
+    if (!item) continue;
+    const cookiePart = String(item).split(';')[0].trim();
+    const eqIdx = cookiePart.indexOf('=');
+    if (eqIdx !== -1) {
+      jar.set(cookiePart.slice(0, eqIdx).trim(), cookiePart.slice(eqIdx + 1).trim());
+    }
+  }
+  return Array.from(jar.entries())
+    .map(([k, v]) => k + '=' + v)
+    .join('; ');
+}
+
+/**
+ * Extracts Set-Cookie strings reliably across different fetch environments
+ * @param {Response} res
+ * @returns {string[]}
+ */
+export function extractCookieHeaders(res) {
+  if (!res || !res.headers) return [];
+  if (typeof res.headers.getSetCookie === 'function') {
+    const list = res.headers.getSetCookie();
+    if (Array.isArray(list) && list.length > 0) return list.filter(Boolean);
+  }
+  const raw = res.headers.get('set-cookie');
+  return raw ? [raw] : [];
+}
+
 export function parseTikTokUrl(inputUrl) {
   const clean = String(inputUrl || '').trim();
 
@@ -96,14 +148,7 @@ export async function resolveUrl(inputUrl) {
     redirect: 'follow',
   });
 
-  const cookiesList = (
-    res.headers.getSetCookie
-      ? res.headers.getSetCookie()
-      : [res.headers.get('set-cookie')]
-  ).filter(Boolean);
-  const cookies = (cookiesList || [])
-    .map((c) => c.split(';')[0])
-    .join('; ');
+  const cookies = mergeCookies('', extractCookieHeaders(res));
 
   let finalUrl = res.url;
   const isPhoto = finalUrl.includes('/photo/') || parsedIsPhoto;
@@ -148,17 +193,7 @@ export async function scrapeVideo(inputUrl) {
     redirect: 'follow',
   });
 
-  const pageCookiesList = (
-    res.headers.getSetCookie
-      ? res.headers.getSetCookie()
-      : [res.headers.get('set-cookie')]
-  ).filter(Boolean);
-  const pageCookies = (pageCookiesList || [])
-    .map((c) => c.split(';')[0])
-    .join('; ');
-  const combinedCookies = [initialCookies, pageCookies]
-    .filter(Boolean)
-    .join('; ');
+  let cookieJar = mergeCookies(initialCookies, extractCookieHeaders(res));
 
   let html = res.ok ? await res.text() : '';
   let itemStruct = null;
@@ -230,9 +265,12 @@ export async function scrapeVideo(inputUrl) {
           'User-Agent': MOBILE_USER_AGENT,
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Referer': 'https://www.tiktok.com/',
+          ...(cookieJar ? { Cookie: cookieJar } : {}),
         },
         redirect: 'follow',
       });
+      // CRITICAL FIX: Merge new session cookies (contains tt_chain_token matching playAddr!)
+      cookieJar = mergeCookies(cookieJar, extractCookieHeaders(fbRes));
       if (fbRes.ok) {
         const fbHtml = await fbRes.text();
         const fbApiMatch = fbHtml.match(/<script id="api-data"[^>]*>([\s\S]*?)<\/script>/);
@@ -258,9 +296,11 @@ export async function scrapeVideo(inputUrl) {
         headers: {
           'User-Agent': BOT_USER_AGENT,
           'Referer': 'https://www.tiktok.com/',
+          ...(cookieJar ? { Cookie: cookieJar } : {}),
         },
         redirect: 'follow',
       });
+      cookieJar = mergeCookies(cookieJar, extractCookieHeaders(botRes));
       if (botRes.ok) {
         const botHtml = await botRes.text();
         const voMatch = botHtml.match(/<script[^>]*id="VideoObject"[^>]*>([\s\S]*?)<\/script>/);
@@ -486,7 +526,7 @@ export async function scrapeVideo(inputUrl) {
     itemStruct?.desc || videoObjectData?.description || ''
   );
 
-  return {
+  const result = {
     id: String(itemStruct?.id || resolvedId || ''),
     url: canonicalUrl,
     postType,
@@ -507,8 +547,21 @@ export async function scrapeVideo(inputUrl) {
     photoDetails: isPhoto ? photoDetails : undefined,
     music,
     comments,
-    sessionCookies: combinedCookies,
+    sessionCookies: cookieJar,
   };
+  // Direct download helpers bound to current verified session cookies
+  if (result.video) {
+    const defaultMediaUrl = result.video.noWatermarkUrl || result.video.playUrl;
+    result.download = (outputPath) =>
+      downloadFile(defaultMediaUrl, outputPath, cookieJar);
+    result.downloadBuffer = () =>
+      downloadBuffer(defaultMediaUrl, cookieJar);
+  }
+  if (result.isPhoto && result.photos) {
+    result.downloadPhotos = (outputDir) =>
+      downloadAllPhotos(result.photos, outputDir, cookieJar);
+  }
+  return result;
 }
 
 /**
@@ -720,10 +773,24 @@ export async function fetchMediaStream(
     headers['Range'] = rangeHeader;
   }
 
-  return fetch(mediaUrl, {
+  let res = await fetch(mediaUrl, {
     headers,
     redirect: 'follow',
   });
+
+  // Intelligent fallback: TikTok CDN (Akamai) frequently demands Range: bytes=0- on stream requests
+  if (res.status === 403 && !rangeHeader) {
+    headers['Range'] = 'bytes=0-';
+    const retryRes = await fetch(mediaUrl, {
+      headers,
+      redirect: 'follow',
+    });
+    if (retryRes.ok) {
+      return retryRes;
+    }
+  }
+
+  return res;
 }
 
 /**
@@ -738,7 +805,10 @@ export async function downloadFile(mediaUrl, outputPath, cookieStr = '') {
 
   const res = await fetchMediaStream(mediaUrl, cookieStr);
   if (!res.ok) {
-    throw new Error(`Failed to download media: HTTP ${res.status}`);
+    throw new Error(
+      `Failed to download media: HTTP ${res.status} (${res.statusText || 'Forbidden'}). ` +
+      `Ensure you pass the matching sessionCookies: await downloadFile(cleanUrl, path, post.sessionCookies) or use post.download(path).`
+    );
   }
 
   const dir = path.dirname(path.resolve(outputPath));

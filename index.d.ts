@@ -1,5 +1,5 @@
 /**
- * TypeScript Declarations for @kazedevid/tiktok-sup v1.2.0
+ * TypeScript Declarations for @kazedevid/tiktok-sup v1.2.1
  */
 
 export type TikTokPostType = 'video' | 'photo';
@@ -106,6 +106,9 @@ export interface TikTokVideoResult {
   music?: TikTokMusic;
   comments?: TikTokComment[];
   sessionCookies?: string;
+  download?: (outputPath: string) => Promise<string>;
+  downloadBuffer?: () => Promise<Buffer>;
+  downloadPhotos?: (outputDir: string) => Promise<string[]>;
 }
 
 export interface TikTokUserProfile {
@@ -158,6 +161,14 @@ export interface TikTokSoundInfo {
   cover?: string;
   duration?: number;
 }
+
+
+export function mergeCookies(
+  existingCookieStr?: string,
+  newCookieHeaderList?: string | string[]
+): string;
+
+export function extractCookieHeaders(res: Response): string[];
 
 export function parseTikTokUrl(inputUrl: string): {
   videoId?: string;
@@ -225,6 +236,8 @@ declare const _default: {
   parseTikTokUrl: typeof parseTikTokUrl;
   resolveUrl: typeof resolveUrl;
   fetchMediaStream: typeof fetchMediaStream;
+  mergeCookies: typeof mergeCookies;
+  extractCookieHeaders: typeof extractCookieHeaders;
 };
 
 export default _default;

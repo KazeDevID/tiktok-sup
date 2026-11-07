@@ -50,10 +50,17 @@ console.log('Author:', post.author.nickname, '(@' + post.author.username + ')');
 console.log('Views:', post.stats.views.toLocaleString());
 console.log('Clean MP4:', post.video?.noWatermarkUrl);
 
-// Download clean MP4 directly
+// Option A: Direct one-line download (recommended - auto attaches session cookies)
+await post.download('clean_video.mp4');
+console.log('Saved clean_video.mp4!');
+
+// Option B: Using downloadFile helper
 const cleanUrl = post.video.noWatermarkUrl || post.video.playUrl;
 await downloadFile(cleanUrl, 'clean_video.mp4', post.sessionCookies);
-console.log('Saved clean_video.mp4!');
+
+// Option C: In-memory Buffer (e.g. for Telegram bot or Discord bot)
+const videoBuffer = await post.downloadBuffer();
+console.log('Downloaded buffer bytes:', videoBuffer.length);
 ```
 
 ### 2. Scrape Photo Slideshow / Carousel
@@ -156,6 +163,18 @@ npx @kazedevid/tiktok-sup hashtag fyp
 | `parseTikTokUrl(url)` | `url: string` | `object` | Normalizes IDs, shortlinks, video and photo URLs. |
 
 ---
+
+
+---
+
+## 🛠️ What's New in v1.2.1
+
+- 🐛 **Fixed HTTP 403 Forbidden on CDN Video Downloads**: Resolved Akamai CDN authentication rejections by implementing a unified Cookie Jar that guarantees `tt_chain_token`, `ttwid`, and session tokens match TikTok's signed video CDN URLs (`tk=tt_chain_token`).
+- 🚀 **New Direct Download Helpers**:
+  - `await post.download("video.mp4")` - Automatically downloads the no-watermark stream with verified session cookies.
+  - `await post.downloadBuffer()` - Downloads stream into an in-memory `Buffer` for bots, cloud storage (S3/GCS), or APIs.
+  - `await post.downloadPhotos("./dir")` - Directly downloads all carousel images.
+- ⚡ **Intelligent Byte-Range Fallback**: `fetchMediaStream()` now automatically adds `Range: bytes=0-` fallback when CDN nodes challenge standard GET requests.
 
 ## 📄 License
 
