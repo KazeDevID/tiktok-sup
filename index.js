@@ -81,6 +81,36 @@ export function extractCookieHeaders(res) {
   return raw ? [raw] : [];
 }
 
+
+/**
+ * Recursively locates itemStruct in any TikTok JSON payload (handles mobile reflow, desktop, and schema changes)
+ * @param {any} obj
+ * @param {number} [depth=0]
+ * @returns {any}
+ */
+export function findItemStruct(obj, depth = 0) {
+  if (!obj || typeof obj !== "object" || depth > 8) return null;
+  if (obj.itemInfo?.itemStruct && typeof obj.itemInfo.itemStruct === "object") {
+    return obj.itemInfo.itemStruct;
+  }
+  if (
+    obj.itemStruct &&
+    typeof obj.itemStruct === "object" &&
+    (obj.itemStruct.id || obj.itemStruct.imagePost || obj.itemStruct.video)
+  ) {
+    return obj.itemStruct;
+  }
+  for (const key of Object.keys(obj)) {
+    if (key.includes("translation") || key.includes("i18n")) continue;
+    const val = obj[key];
+    if (val && typeof val === "object") {
+      const found = findItemStruct(val, depth + 1);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 export function parseTikTokUrl(inputUrl) {
   const clean = String(inputUrl || '').trim();
 
@@ -228,11 +258,35 @@ export async function scrapeVideo(inputUrl) {
     if (rehydrationMatch) {
       try {
         const parsed = JSON.parse(rehydrationMatch[1]);
-        const scope = parsed['__DEFAULT_SCOPE__'] || {};
-        const videoDetail = scope['webapp.video-detail'];
-        if (videoDetail?.itemInfo?.itemStruct) {
-          itemStruct = videoDetail.itemInfo.itemStruct;
+        const scope = parsed["__DEFAULT_SCOPE__"] || {};
+        const detailObj =
+          scope["webapp.reflow.video.detail"] ||
+          scope["webapp.video-detail"] ||
+          scope["webapp.reflow.photo.detail"] ||
+          scope["webapp.photo-detail"] ||
+          scope["webapp.videoDetail"];
+
+        if (detailObj?.itemInfo?.itemStruct) {
+          itemStruct = detailObj.itemInfo.itemStruct;
+        } else {
+          itemStruct = findItemStruct(parsed);
         }
+        if (detailObj?.commentList?.comments && Array.isArray(detailObj.commentList.comments)) {
+          commentsRaw = detailObj.commentList.comments;
+        }
+      } catch (_) {}
+    }
+  }
+
+  // Parse Method B.2: <script id="__NEXT_DATA__">
+  if (!itemStruct && html) {
+    const nextMatch = html.match(
+      /<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/
+    );
+    if (nextMatch) {
+      try {
+        const parsed = JSON.parse(nextMatch[1]);
+        itemStruct = findItemStruct(parsed);
       } catch (_) {}
     }
   }

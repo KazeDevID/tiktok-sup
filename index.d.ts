@@ -1,5 +1,5 @@
 /**
- * TypeScript Declarations for @kazedevid/tiktok-sup v1.2.1
+ * TypeScript Declarations for @kazedevid/tiktok-sup v1.2.2
  */
 
 export type TikTokPostType = 'video' | 'photo';
@@ -170,6 +170,8 @@ export function mergeCookies(
 
 export function extractCookieHeaders(res: Response): string[];
 
+export function findItemStruct(obj: any, depth?: number): any;
+
 export function parseTikTokUrl(inputUrl: string): {
   videoId?: string;
   username?: string;
@@ -238,6 +240,7 @@ declare const _default: {
   fetchMediaStream: typeof fetchMediaStream;
   mergeCookies: typeof mergeCookies;
   extractCookieHeaders: typeof extractCookieHeaders;
+  findItemStruct: typeof findItemStruct;
 };
 
 export default _default;

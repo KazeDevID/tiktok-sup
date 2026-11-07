@@ -167,6 +167,16 @@ npx @kazedevid/tiktok-sup hashtag fyp
 
 ---
 
+
+---
+
+## 🛠️ What's New in v1.2.2
+
+- 🐛 **Fixed "Could not locate TikTok post data" on Mobile Reflow & Photo Posts**:
+  - TikTok mobile reflow pages and photo carousels store post state under `webapp.reflow.video.detail` rather than desktop `webapp.video-detail`.
+  - Added recursive JSON state extractor (`findItemStruct`) and `__NEXT_DATA__` support to guarantee zero missed posts across all TikTok web layout variations.
+  - Successfully resolves short links like `https://vt.tiktok.com/ZSprKn3h8/` and full photo posts directly on the primary page request.
+
 ## 🛠️ What's New in v1.2.1
 
 - 🐛 **Fixed HTTP 403 Forbidden on CDN Video Downloads**: Resolved Akamai CDN authentication rejections by implementing a unified Cookie Jar that guarantees `tt_chain_token`, `ttwid`, and session tokens match TikTok's signed video CDN URLs (`tk=tt_chain_token`).
