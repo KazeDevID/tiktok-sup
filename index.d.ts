@@ -1,3 +1,9 @@
+/**
+ * TypeScript Declarations for @kazedevid/tiktok-sup v1.2.0
+ */
+
+export type TikTokPostType = 'video' | 'photo';
+
 export interface TikTokAuthor {
   id: string;
   username: string;
@@ -24,6 +30,15 @@ export interface TikTokBitrate {
   url?: string;
 }
 
+export interface TikTokSubtitle {
+  id?: string;
+  language: string;
+  languageCode: string;
+  url: string;
+  format?: string;
+  source?: string;
+}
+
 export interface TikTokVideoMedia {
   id: string;
   duration: number;
@@ -32,12 +47,24 @@ export interface TikTokVideoMedia {
   ratio?: string;
   cover: string;
   dynamicCover?: string;
+  originCover?: string;
   playUrl?: string;
   noWatermarkUrl?: string;
   downloadUrl?: string;
   watermarkUrl?: string;
+  signedApiUrl?: string;
   bitrates?: TikTokBitrate[];
+  subtitles?: TikTokSubtitle[];
   format?: string;
+}
+
+export interface TikTokPhotoItem {
+  index: number;
+  url: string;
+  backupUrls?: string[];
+  thumbnail?: string;
+  width?: number;
+  height?: number;
 }
 
 export interface TikTokMusic {
@@ -66,15 +93,17 @@ export interface TikTokComment {
 export interface TikTokVideoResult {
   id: string;
   url: string;
+  postType: TikTokPostType;
+  isPhoto: boolean;
   description: string;
   createTime: number;
   createTimeFormatted: string;
   author: TikTokAuthor;
   stats: TikTokStats;
   video?: TikTokVideoMedia;
-  music?: TikTokMusic;
-  isPhoto: boolean;
   photos?: string[];
+  photoDetails?: TikTokPhotoItem[];
+  music?: TikTokMusic;
   comments?: TikTokComment[];
   sessionCookies?: string;
 }
@@ -130,7 +159,7 @@ export interface TikTokSoundInfo {
   duration?: number;
 }
 
-export declare function parseTikTokUrl(inputUrl: string): {
+export function parseTikTokUrl(inputUrl: string): {
   videoId?: string;
   username?: string;
   isShort: boolean;
@@ -138,40 +167,50 @@ export declare function parseTikTokUrl(inputUrl: string): {
   normalizedUrl: string;
 };
 
-export declare function resolveUrl(inputUrl: string): Promise<{
+export function resolveUrl(inputUrl: string): Promise<{
   canonicalUrl: string;
   cookies: string;
   videoId?: string;
+  isPhoto: boolean;
 }>;
 
-export declare function scrapeVideo(inputUrl: string): Promise<TikTokVideoResult>;
-
-export declare function scrapeUser(inputUsername: string): Promise<TikTokUserProfile>;
-
-export declare function scrapeTrending(
+export function scrapeVideo(inputUrl: string): Promise<TikTokVideoResult>;
+export function scrapeUser(inputUsername: string): Promise<TikTokUserProfile>;
+export function scrapeTrending(
   category?: 'all' | 'creator' | 'hashtag' | 'music'
 ): Promise<TikTokTrendingItem[]>;
+export function scrapeHashtag(tag: string): Promise<TikTokHashtagInfo>;
+export function scrapeSound(soundIdOrUrl: string): Promise<TikTokSoundInfo>;
 
-export declare function scrapeHashtag(tag: string): Promise<TikTokHashtagInfo>;
-
-export declare function scrapeSound(soundIdOrUrl: string): Promise<TikTokSoundInfo>;
-
-export declare function fetchMediaStream(
+export function fetchMediaStream(
   mediaUrl: string,
   cookieStr?: string,
-  rangeHeader?: string
+  rangeHeader?: string,
+  userAgent?: string
 ): Promise<Response>;
 
-export declare function downloadBuffer(
-  mediaUrl: string,
-  cookieStr?: string
-): Promise<Buffer>;
-
-export declare function downloadFile(
+export function downloadFile(
   mediaUrl: string,
   outputPath: string,
   cookieStr?: string
 ): Promise<string>;
+
+export function downloadBuffer(
+  mediaUrl: string,
+  cookieStr?: string
+): Promise<Buffer>;
+
+export function downloadPhoto(
+  photoUrl: string,
+  outputPath: string,
+  cookieStr?: string
+): Promise<string>;
+
+export function downloadAllPhotos(
+  photoUrls: string[],
+  outputDir: string,
+  cookieStr?: string
+): Promise<string[]>;
 
 declare const _default: {
   scrapeVideo: typeof scrapeVideo;
@@ -179,11 +218,13 @@ declare const _default: {
   scrapeTrending: typeof scrapeTrending;
   scrapeHashtag: typeof scrapeHashtag;
   scrapeSound: typeof scrapeSound;
+  downloadFile: typeof downloadFile;
+  downloadBuffer: typeof downloadBuffer;
+  downloadPhoto: typeof downloadPhoto;
+  downloadAllPhotos: typeof downloadAllPhotos;
   parseTikTokUrl: typeof parseTikTokUrl;
   resolveUrl: typeof resolveUrl;
   fetchMediaStream: typeof fetchMediaStream;
-  downloadBuffer: typeof downloadBuffer;
-  downloadFile: typeof downloadFile;
 };
 
 export default _default;
