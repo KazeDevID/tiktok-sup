@@ -1,5 +1,5 @@
 {
-  "name": "tiktok-sup",
+  "name": "@kazedevid/tiktok-sup",
   "version": "1.0.0",
   "description": "Pure TikTok web scraper library for Node.js without any 3rd party APIs. Scrape videos, user profiles, sound audio, comments and trending data directly from tiktok.com.",
   "main": "index.js",
