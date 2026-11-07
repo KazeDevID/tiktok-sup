@@ -118,6 +118,66 @@ console.log('Top creators:', creators.map(c => c.title));
 
 ---
 
+
+### 💬 7. Scrape Real Post Comments (v1.4.0)
+
+Extract real user comments with likes, avatars, reply counts, and pagination cursor directly from tiktok.com without any API keys.
+
+```javascript
+import { scrapeComments, scrapeVideo } from "@kazedevid/tiktok-sup";
+
+// Method A: Direct function call with URL or post ID
+const commentsData = await scrapeComments("https://vt.tiktok.com/ZSpr3DYnu/", { count: 20 });
+console.log("Total Comments:", commentsData.total);
+for (const c of commentsData.comments) {
+  console.log(`[${c.user.nickname} (@${c.user.username})] (${c.likes} likes): ${c.text}`);
+}
+
+// Method B: Directly from scraped post object
+const post = await scrapeVideo("https://vt.tiktok.com/ZSpr3DYnu/");
+const comments = await post.getComments(10);
+console.log("Loaded comments:", comments.comments.length);
+```
+
+---
+
+### 🔍 8. Keyword Discovery Search (v1.4.0)
+
+Search tiktok.com discovery network for matching creators, hashtags, and viral sounds.
+
+```javascript
+import { scrapeSearch } from "@kazedevid/tiktok-sup";
+
+const results = await scrapeSearch("mobile legends", "all");
+// results.items contains creators, hashtags with total views, and soundtracks with playable audio URLs!
+console.log("Found results:", results.items.length);
+```
+
+---
+
+### 🌐 9. Official TikTok oEmbed (v1.4.0)
+
+Generate standard responsive iframe embed codes compliant with TikTok oEmbed.
+
+```javascript
+import { scrapeOEmbed } from "@kazedevid/tiktok-sup";
+
+const embed = await scrapeOEmbed("https://vt.tiktok.com/ZSpr3DYnu/");
+console.log("Iframe HTML:", embed.html);
+```
+
+---
+
+### 🏷️ 10. Hashtags & Mentions Parsing
+
+Every scraped post automatically includes extracted hashtags and user mentions:
+
+```javascript
+const post = await scrapeVideo("https://vt.tiktok.com/ZSpr3DYnu/");
+console.log("Hashtags:", post.hashtags); // ["jekkslwly", "teamslwly", "MLBB"]
+console.log("Mentions:", post.mentions);
+```
+
 ## 💻 CLI Usage
 
 You can run the scraper directly in your terminal using `npx`:
@@ -147,7 +207,7 @@ npx @kazedevid/tiktok-sup hashtag fyp
 
 ---
 
-## 📖 API Reference (v1.2.0)
+## 📖 API Reference (v1.4.0)
 
 | Function | Arguments | Returns | Description |
 | :--- | :--- | :--- | :--- |
@@ -173,7 +233,7 @@ npx @kazedevid/tiktok-sup hashtag fyp
 
 ---
 
-## 🛠️ What's New in v1.3.0
+## 🛠️ What's New in v1.4.0
 
 - 🎵 **Dedicated Audio Track Extractor & Downloader**:
   - `await post.downloadAudio("soundtrack.mp3")` — Extract and download clean background music / sound stream.
@@ -186,14 +246,14 @@ npx @kazedevid/tiktok-sup hashtag fyp
 - 🎚️ **Quality & Bitrate Gear Selection**:
   - `await post.download("video.mp4", { quality: "highest" | "1080p" | "720p" })`.
 
-## 🛠️ What's New in v1.2.2
+## 🛠️ What's New in v1.4.0
 
 - 🐛 **Fixed "Could not locate TikTok post data" on Mobile Reflow & Photo Posts**:
   - TikTok mobile reflow pages and photo carousels store post state under `webapp.reflow.video.detail` rather than desktop `webapp.video-detail`.
   - Added recursive JSON state extractor (`findItemStruct`) and `__NEXT_DATA__` support to guarantee zero missed posts across all TikTok web layout variations.
   - Successfully resolves short links like `https://vt.tiktok.com/ZSprKn3h8/` and full photo posts directly on the primary page request.
 
-## 🛠️ What's New in v1.2.1
+## 🛠️ What's New in v1.4.0
 
 - 🐛 **Fixed HTTP 403 Forbidden on CDN Video Downloads**: Resolved Akamai CDN authentication rejections by implementing a unified Cookie Jar that guarantees `tt_chain_token`, `ttwid`, and session tokens match TikTok's signed video CDN URLs (`tk=tt_chain_token`).
 - 🚀 **New Direct Download Helpers**:

@@ -1,7 +1,6 @@
 /**
- * TypeScript Declarations for @kazedevid/tiktok-sup v1.3.0
+ * TypeScript Declarations for @kazedevid/tiktok-sup v1.4.0
  */
-
 
 export interface DownloadOptions {
   quality?: "highest" | "lowest" | "original" | "1080p" | "720p" | "540p" | string;
@@ -22,7 +21,7 @@ export interface BatchDownloadOptions extends DownloadOptions {
   delayMs?: number;
 }
 
-export type TikTokPostType = 'video' | 'photo';
+export type TikTokPostType = "video" | "photo";
 
 export interface TikTokAuthor {
   id: string;
@@ -96,6 +95,61 @@ export interface TikTokMusic {
   cover?: string;
 }
 
+export interface TikTokCommentItem {
+  id: string;
+  text: string;
+  createTime: number;
+  createTimeFormatted: string;
+  likes: number;
+  replyCount: number;
+  authorPin?: boolean;
+  user: {
+    id: string;
+    username: string;
+    nickname: string;
+    avatar: string;
+  };
+}
+
+export interface TikTokCommentsResult {
+  postId: string;
+  total: number;
+  hasMore: boolean;
+  cursor: number;
+  comments: TikTokCommentItem[];
+}
+
+export interface TikTokOEmbed {
+  version: string;
+  type: string;
+  title?: string;
+  authorName?: string;
+  authorUrl?: string;
+  width?: string | number;
+  height?: string | number;
+  html: string;
+  providerUrl: string;
+  providerName: string;
+  embedProductId?: string;
+}
+
+export interface TikTokSearchResultItem {
+  type: "creator" | "hashtag" | "music" | "unknown";
+  id: string;
+  title: string;
+  subTitle?: string;
+  description?: string;
+  cover?: string;
+  link?: string;
+  extraInfo?: Record<string, any>;
+}
+
+export interface TikTokSearchResult {
+  query: string;
+  category: "all" | "creator" | "hashtag" | "music";
+  items: TikTokSearchResultItem[];
+}
+
 export interface TikTokComment {
   cid: string;
   text: string;
@@ -116,6 +170,8 @@ export interface TikTokVideoResult {
   postType: TikTokPostType;
   isPhoto: boolean;
   description: string;
+  hashtags?: string[];
+  mentions?: string[];
   createTime: number;
   createTimeFormatted: string;
   author: TikTokAuthor;
@@ -125,12 +181,14 @@ export interface TikTokVideoResult {
   photoDetails?: TikTokPhotoItem[];
   music?: TikTokMusic;
   comments?: TikTokComment[];
-  sessionCookies?: string;
+  sessionCookies: string;
   download?: (outputPath: string, options?: DownloadOptions) => Promise<string>;
   downloadBuffer?: () => Promise<Buffer>;
   downloadPhotos?: (outputDir: string) => Promise<string[]>;
   downloadAudio?: (outputPath: string) => Promise<string>;
   downloadAudioBuffer?: () => Promise<Buffer>;
+  getComments?: (count?: number, cursor?: number) => Promise<TikTokCommentsResult>;
+  getOEmbed?: () => Promise<TikTokOEmbed>;
 }
 
 export interface TikTokUserProfile {
@@ -159,7 +217,7 @@ export interface TikTokUserProfile {
 }
 
 export interface TikTokTrendingItem {
-  type: 'creator' | 'hashtag' | 'music' | 'unknown';
+  type: "creator" | "hashtag" | "music" | "unknown";
   id: string;
   title: string;
   subTitle?: string;
@@ -184,22 +242,14 @@ export interface TikTokSoundInfo {
   duration?: number;
 }
 
-
-export function mergeCookies(
-  existingCookieStr?: string,
-  newCookieHeaderList?: string | string[]
-): string;
-
-export function extractCookieHeaders(res: Response): string[];
-
-export function findItemStruct(obj: any, depth?: number): any;
+export const MOBILE_USER_AGENT: string;
+export const BOT_USER_AGENT: string;
+export const DESKTOP_USER_AGENT: string;
 
 export function parseTikTokUrl(inputUrl: string): {
-  videoId?: string;
-  username?: string;
-  isShort: boolean;
-  isPhoto: boolean;
   normalizedUrl: string;
+  videoId?: string;
+  isPhoto: boolean;
 };
 
 export function resolveUrl(inputUrl: string): Promise<{
@@ -212,16 +262,30 @@ export function resolveUrl(inputUrl: string): Promise<{
 export function scrapeVideo(inputUrl: string): Promise<TikTokVideoResult>;
 export function scrapeUser(inputUsername: string): Promise<TikTokUserProfile>;
 export function scrapeTrending(
-  category?: 'all' | 'creator' | 'hashtag' | 'music'
+  category?: "all" | "creator" | "hashtag" | "music"
 ): Promise<TikTokTrendingItem[]>;
 export function scrapeHashtag(tag: string): Promise<TikTokHashtagInfo>;
 export function scrapeSound(soundIdOrUrl: string): Promise<TikTokSoundInfo>;
 
+export function scrapeComments(
+  postIdOrUrl: string,
+  options?: { count?: number; cursor?: number; sessionCookies?: string }
+): Promise<TikTokCommentsResult>;
+
+export function scrapeOEmbed(inputUrl: string): Promise<TikTokOEmbed>;
+
+export function scrapeSearch(
+  query: string,
+  category?: "all" | "creator" | "hashtag" | "music"
+): Promise<TikTokSearchResult>;
+
+export function extractHashtags(text: string): string[];
+export function extractMentions(text: string): string[];
+
 export function fetchMediaStream(
   mediaUrl: string,
   cookieStr?: string,
-  rangeHeader?: string,
-  userAgent?: string
+  rangeHeader?: string
 ): Promise<Response>;
 
 export function downloadFile(
@@ -247,7 +311,6 @@ export function downloadAllPhotos(
   cookieStr?: string
 ): Promise<string[]>;
 
-
 export function downloadAudio(
   audioUrl: string,
   outputPath: string,
@@ -265,12 +328,24 @@ export function batchDownload(
   options?: BatchDownloadOptions
 ): Promise<BatchItemResult[]>;
 
+export function mergeCookies(
+  existingCookieStr?: string,
+  newCookieHeaders?: string | string[]
+): string;
+
+export function extractCookieHeaders(response: Response): string[];
+
 declare const _default: {
   scrapeVideo: typeof scrapeVideo;
   scrapeUser: typeof scrapeUser;
   scrapeTrending: typeof scrapeTrending;
   scrapeHashtag: typeof scrapeHashtag;
   scrapeSound: typeof scrapeSound;
+  scrapeComments: typeof scrapeComments;
+  scrapeOEmbed: typeof scrapeOEmbed;
+  scrapeSearch: typeof scrapeSearch;
+  extractHashtags: typeof extractHashtags;
+  extractMentions: typeof extractMentions;
   downloadFile: typeof downloadFile;
   downloadBuffer: typeof downloadBuffer;
   downloadPhoto: typeof downloadPhoto;
@@ -283,7 +358,6 @@ declare const _default: {
   fetchMediaStream: typeof fetchMediaStream;
   mergeCookies: typeof mergeCookies;
   extractCookieHeaders: typeof extractCookieHeaders;
-  findItemStruct: typeof findItemStruct;
 };
 
 export default _default;
