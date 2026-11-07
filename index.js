@@ -1,14 +1,10 @@
 /**
- * @kazedevid/tiktok-sup v1.2.0
- * Pure TikTok.com Web Scraper Engine
- * Scrapes video (no-watermark MP4), photo carousels/slideshows (HD images),
- * user profiles, audio soundtracks, subtitle closed captions, comments,
- * hashtags, and trending topics directly from tiktok.com.
+ * @license
+ * MIT License
+ * Copyright (c) 2026 KazeDevID
  *
- * No 3rd-party APIs, no proxies, pure official web parsing.
- *
- * @author KazeDevID
- * @license MIT
+ * @kazedevid/tiktok-sup v1.3.0
+ * Pure TikTok Web Scraper & Clean Media Stream Engine
  */
 
 import fs from 'node:fs';
@@ -25,19 +21,200 @@ export const BOT_USER_AGENT =
 export const DESKTOP_USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
-/**
- * Parses and normalizes any TikTok URL, short link, or raw ID
- * @param {string} inputUrl
- */
+export type TikTokPostType = 'video' | 'photo';
+
+export interface DownloadOptions {
+  quality?: 'highest' | 'lowest' | 'original' | '1080p' | '720p' | '540p' | string;
+}
+
+export interface BatchItemResult {
+  url: string;
+  success: boolean;
+  id?: string;
+  postType?: 'video' | 'photo';
+  path?: string;
+  count?: number;
+  error?: string;
+}
+
+export interface BatchDownloadOptions extends DownloadOptions {
+  onProgress?: (progress: {
+    current: number;
+    total: number;
+    item?: BatchItemResult;
+    error?: string;
+  }) => void;
+  delayMs?: number;
+}
+
+export interface TikTokAuthor {
+  id: string;
+  username: string;
+  nickname: string;
+  avatar: string;
+  verified: boolean;
+  secUid?: string;
+  signature?: string;
+}
+
+export interface TikTokStats {
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  bookmarks: number;
+}
+
+export interface TikTokBitrate {
+  gearName?: string;
+  bitrate?: number;
+  qualityType?: number;
+  codecType?: string;
+  url?: string;
+}
+
+export interface TikTokSubtitle {
+  id?: string;
+  language: string;
+  languageCode: string;
+  url: string;
+  format?: string;
+  source?: string;
+}
+
+export interface TikTokVideoMedia {
+  id: string;
+  duration: number;
+  width: number;
+  height: number;
+  ratio?: string;
+  cover: string;
+  dynamicCover?: string;
+  originCover?: string;
+  playUrl?: string;
+  noWatermarkUrl?: string;
+  downloadUrl?: string;
+  watermarkUrl?: string;
+  signedApiUrl?: string;
+  bitrates?: TikTokBitrate[];
+  subtitles?: TikTokSubtitle[];
+  format?: string;
+}
+
+export interface TikTokPhotoItem {
+  index: number;
+  url: string;
+  backupUrls?: string[];
+  thumbnail?: string;
+  width?: number;
+  height?: number;
+}
+
+export interface TikTokMusic {
+  id: string;
+  title: string;
+  author: string;
+  duration: number;
+  playUrl?: string;
+  cover?: string;
+}
+
+export interface TikTokComment {
+  cid: string;
+  text: string;
+  createTime: number;
+  diggCount: number;
+  replyCount: number;
+  user: {
+    id: string;
+    username: string;
+    nickname: string;
+    avatar: string;
+  };
+}
+
+export interface TikTokVideoResult {
+  id: string;
+  url: string;
+  postType: TikTokPostType;
+  isPhoto: boolean;
+  description: string;
+  createTime: number;
+  createTimeFormatted: string;
+  author: TikTokAuthor;
+  stats: TikTokStats;
+  video?: TikTokVideoMedia;
+  photos?: string[];
+  photoDetails?: TikTokPhotoItem[];
+  music?: TikTokMusic;
+  comments?: TikTokComment[];
+  sessionCookies: string;
+  download?: (outputPath: string, options?: DownloadOptions) => Promise<string>;
+  downloadBuffer?: () => Promise<Buffer>;
+  downloadPhotos?: (outputDir: string) => Promise<string[]>;
+  downloadAudio?: (outputPath: string) => Promise<string>;
+  downloadAudioBuffer?: () => Promise<Buffer>;
+}
+
+export interface TikTokUserProfile {
+  id: string;
+  uniqueId: string;
+  nickname: string;
+  avatar: string;
+  avatarMedium: string;
+  avatarThumb: string;
+  signature: string;
+  bioLink?: { link: string; risk: number };
+  verified: boolean;
+  secUid: string;
+  privateAccount: boolean;
+  stats: {
+    followerCount: number;
+    followingCount: number;
+    heartCount: number;
+    videoCount: number;
+    friendCount: number;
+  };
+  shareMeta?: {
+    title: string;
+    desc: string;
+  };
+}
+
+export interface TikTokTrendingItem {
+  type: 'creator' | 'hashtag' | 'music' | 'unknown';
+  id: string;
+  title: string;
+  subTitle?: string;
+  desc?: string;
+  cover?: string;
+}
+
+export interface TikTokHashtagInfo {
+  id: string;
+  title: string;
+  views?: string;
+  desc?: string;
+  cover?: string;
+}
+
+export interface TikTokSoundInfo {
+  id: string;
+  title: string;
+  author?: string;
+  playUrl?: string;
+  cover?: string;
+  duration?: number;
+}
 
 /**
  * Merges cookie strings and Set-Cookie headers into a single normalized Cookie header string
- * @param {string} [existingCookieStr]
- * @param {string[]|string} [newCookieHeaders]
- * @returns {string}
  */
-export function mergeCookies(existingCookieStr = '', newCookieHeaders = []) {
-  const jar = new Map();
+export function mergeCookies(
+  existingCookieStr = '',
+  newCookieHeaders: string | string[] = []
+): string {
+  const jar = new Map<string, string>();
   if (existingCookieStr) {
     for (const part of String(existingCookieStr).split(';')) {
       const trimmed = part.trim();
@@ -53,6 +230,7 @@ export function mergeCookies(existingCookieStr = '', newCookieHeaders = []) {
     : newCookieHeaders
     ? [newCookieHeaders]
     : [];
+
   for (const item of headersList) {
     if (!item) continue;
     const cookiePart = String(item).split(';')[0].trim();
@@ -62,48 +240,43 @@ export function mergeCookies(existingCookieStr = '', newCookieHeaders = []) {
     }
   }
   return Array.from(jar.entries())
-    .map(([k, v]) => k + '=' + v)
+    .map(([k, v]) => `${k}=${v}`)
     .join('; ');
 }
 
 /**
  * Extracts Set-Cookie strings reliably across different fetch environments
- * @param {Response} res
- * @returns {string[]}
  */
-export function extractCookieHeaders(res) {
+export function extractCookieHeaders(res: Response): string[] {
   if (!res || !res.headers) return [];
-  if (typeof res.headers.getSetCookie === 'function') {
-    const list = res.headers.getSetCookie();
+  const headersAny = res.headers as unknown as { getSetCookie?: () => string[] };
+  if (typeof headersAny.getSetCookie === 'function') {
+    const list = headersAny.getSetCookie();
     if (Array.isArray(list) && list.length > 0) return list.filter(Boolean);
   }
   const raw = res.headers.get('set-cookie');
   return raw ? [raw] : [];
 }
 
-
 /**
  * Recursively locates itemStruct in any TikTok JSON payload (handles mobile reflow, desktop, and schema changes)
- * @param {any} obj
- * @param {number} [depth=0]
- * @returns {any}
  */
-export function findItemStruct(obj, depth = 0) {
-  if (!obj || typeof obj !== "object" || depth > 8) return null;
-  if (obj.itemInfo?.itemStruct && typeof obj.itemInfo.itemStruct === "object") {
+export function findItemStruct(obj: any, depth = 0): any {
+  if (!obj || typeof obj !== 'object' || depth > 8) return null;
+  if (obj.itemInfo?.itemStruct && typeof obj.itemInfo.itemStruct === 'object') {
     return obj.itemInfo.itemStruct;
   }
   if (
     obj.itemStruct &&
-    typeof obj.itemStruct === "object" &&
+    typeof obj.itemStruct === 'object' &&
     (obj.itemStruct.id || obj.itemStruct.imagePost || obj.itemStruct.video)
   ) {
     return obj.itemStruct;
   }
   for (const key of Object.keys(obj)) {
-    if (key.includes("translation") || key.includes("i18n")) continue;
+    if (key.includes('translation') || key.includes('i18n')) continue;
     const val = obj[key];
-    if (val && typeof val === "object") {
+    if (val && typeof val === 'object') {
       const found = findItemStruct(val, depth + 1);
       if (found) return found;
     }
@@ -111,7 +284,16 @@ export function findItemStruct(obj, depth = 0) {
   return null;
 }
 
-export function parseTikTokUrl(inputUrl) {
+/**
+ * Parses and normalizes any TikTok URL, short link, or raw ID
+ */
+export function parseTikTokUrl(inputUrl: string): {
+  videoId?: string;
+  username?: string;
+  isShort: boolean;
+  isPhoto: boolean;
+  normalizedUrl: string;
+} {
   const clean = String(inputUrl || '').trim();
 
   // 1. Raw numeric video/photo ID (e.g. 6768504823336815877)
@@ -128,8 +310,8 @@ export function parseTikTokUrl(inputUrl) {
     clean.includes('vt.tiktok.com') ||
     clean.includes('vm.tiktok.com') ||
     clean.includes('/t/');
-  const isPhoto = clean.includes('/photo/');
 
+  const isPhoto = clean.includes('/photo/');
   const videoMatch = clean.match(/\/video\/(\d{15,22})/);
   const photoMatch = clean.match(/\/photo\/(\d{15,22})/);
   const vMatch = clean.match(/\/v\/(\d{15,22})/);
@@ -143,7 +325,6 @@ export function parseTikTokUrl(inputUrl) {
     normalizedUrl = 'https://' + clean;
   }
 
-  // Format cleanly if ID is known without username
   if (videoId && !username && !isShort) {
     if (isPhoto) {
       normalizedUrl = `https://www.tiktok.com/@tiktok/photo/${videoId}`;
@@ -163,10 +344,15 @@ export function parseTikTokUrl(inputUrl) {
 
 /**
  * Resolves short links (vt.tiktok.com, vm.tiktok.com) and extracts session cookies
- * @param {string} inputUrl
  */
-export async function resolveUrl(inputUrl) {
-  const { normalizedUrl, videoId: parsedId, isPhoto: parsedIsPhoto } = parseTikTokUrl(inputUrl);
+export async function resolveUrl(inputUrl: string): Promise<{
+  canonicalUrl: string;
+  cookies: string;
+  videoId?: string;
+  isPhoto: boolean;
+}> {
+  const { normalizedUrl, videoId: parsedId, isPhoto: parsedIsPhoto } =
+    parseTikTokUrl(inputUrl);
 
   const res = await fetch(normalizedUrl, {
     headers: {
@@ -179,15 +365,12 @@ export async function resolveUrl(inputUrl) {
   });
 
   const cookies = mergeCookies('', extractCookieHeaders(res));
-
   let finalUrl = res.url;
   const isPhoto = finalUrl.includes('/photo/') || parsedIsPhoto;
-
   const idMatch = finalUrl.match(/\/video\/(\d{15,22})/);
   const photoMatch = finalUrl.match(/\/photo\/(\d{15,22})/);
   const extractedId = photoMatch?.[1] || idMatch?.[1] || parsedId;
 
-  // If redirected to homepage or short link failed to expand canonical URL, rebuild
   if (finalUrl.includes('tiktok.com/?') && extractedId) {
     finalUrl = isPhoto
       ? `https://www.tiktok.com/@tiktok/photo/${extractedId}`
@@ -204,11 +387,16 @@ export async function resolveUrl(inputUrl) {
 
 /**
  * Scrapes a TikTok video or photo post directly from tiktok.com
- * @param {string} inputUrl
  */
-export async function scrapeVideo(inputUrl) {
-  const { canonicalUrl, cookies: initialCookies, videoId: resolvedId, isPhoto: urlIsPhoto } =
-    await resolveUrl(inputUrl);
+export async function scrapeVideo(inputUrl: string): Promise<TikTokVideoResult> {
+  const {
+    canonicalUrl,
+    cookies: initialCookies,
+    videoId: resolvedId,
+    isPhoto: urlIsPhoto,
+  } = await resolveUrl(inputUrl);
+
+  let cookieJar = initialCookies || '';
 
   // Strategy 1: Fetch mobile reflow page (primary method)
   const res = await fetch(canonicalUrl, {
@@ -218,16 +406,16 @@ export async function scrapeVideo(inputUrl) {
         'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
       'Referer': 'https://www.tiktok.com/',
-      ...(initialCookies ? { Cookie: initialCookies } : {}),
+      ...(cookieJar ? { Cookie: cookieJar } : {}),
     },
     redirect: 'follow',
   });
 
-  let cookieJar = mergeCookies(initialCookies, extractCookieHeaders(res));
+  cookieJar = mergeCookies(cookieJar, extractCookieHeaders(res));
 
   let html = res.ok ? await res.text() : '';
-  let itemStruct = null;
-  let commentsRaw = [];
+  let itemStruct: any = null;
+  let commentsRaw: any[] = [];
 
   // Parse Method A: <script id="api-data">
   if (html) {
@@ -237,8 +425,14 @@ export async function scrapeVideo(inputUrl) {
     if (apiDataMatch) {
       try {
         const parsed = JSON.parse(apiDataMatch[1]);
-        if (parsed.videoDetail?.itemInfo?.itemStruct) {
-          itemStruct = parsed.videoDetail.itemInfo.itemStruct;
+        const detail =
+          parsed.videoDetail ||
+          parsed.reflowVideoDetail ||
+          parsed.photoDetail;
+        if (detail?.itemInfo?.itemStruct) {
+          itemStruct = detail.itemInfo.itemStruct;
+        } else {
+          itemStruct = findItemStruct(parsed);
         }
         if (
           parsed.commentList?.comments &&
@@ -258,13 +452,13 @@ export async function scrapeVideo(inputUrl) {
     if (rehydrationMatch) {
       try {
         const parsed = JSON.parse(rehydrationMatch[1]);
-        const scope = parsed["__DEFAULT_SCOPE__"] || {};
+        const scope = parsed['__DEFAULT_SCOPE__'] || {};
         const detailObj =
-          scope["webapp.reflow.video.detail"] ||
-          scope["webapp.video-detail"] ||
-          scope["webapp.reflow.photo.detail"] ||
-          scope["webapp.photo-detail"] ||
-          scope["webapp.videoDetail"];
+          scope['webapp.reflow.video.detail'] ||
+          scope['webapp.video-detail'] ||
+          scope['webapp.reflow.photo.detail'] ||
+          scope['webapp.photo-detail'] ||
+          scope['webapp.videoDetail'];
 
         if (detailObj?.itemInfo?.itemStruct) {
           itemStruct = detailObj.itemInfo.itemStruct;
@@ -308,8 +502,9 @@ export async function scrapeVideo(inputUrl) {
     }
   }
 
-  // Parse Method D: If itemStruct was not in mobile HTML, try with generic @tiktok URL
-  if (!itemStruct && resolvedId) {
+  // Parse Method D: If itemStruct or video.playAddr missing, try with generic @tiktok URL
+  const needsPlayAddr = !itemStruct || (!itemStruct.imagePost && !itemStruct.video?.playAddr);
+  if (needsPlayAddr && resolvedId) {
     try {
       const fallbackUrl = urlIsPhoto
         ? `https://www.tiktok.com/@tiktok/photo/${resolvedId}`
@@ -317,7 +512,8 @@ export async function scrapeVideo(inputUrl) {
       const fbRes = await fetch(fallbackUrl, {
         headers: {
           'User-Agent': MOBILE_USER_AGENT,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept':
+            'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Referer': 'https://www.tiktok.com/',
           ...(cookieJar ? { Cookie: cookieJar } : {}),
         },
@@ -325,13 +521,19 @@ export async function scrapeVideo(inputUrl) {
       });
       // CRITICAL FIX: Merge new session cookies (contains tt_chain_token matching playAddr!)
       cookieJar = mergeCookies(cookieJar, extractCookieHeaders(fbRes));
+
       if (fbRes.ok) {
         const fbHtml = await fbRes.text();
-        const fbApiMatch = fbHtml.match(/<script id="api-data"[^>]*>([\s\S]*?)<\/script>/);
+        const fbApiMatch = fbHtml.match(
+          /<script id="api-data"[^>]*>([\s\S]*?)<\/script>/
+        );
         if (fbApiMatch) {
           const parsed = JSON.parse(fbApiMatch[1]);
-          if (parsed.videoDetail?.itemInfo?.itemStruct) {
-            itemStruct = parsed.videoDetail.itemInfo.itemStruct;
+          const d = parsed.videoDetail || parsed.photoDetail;
+          if (d?.itemInfo?.itemStruct) {
+            itemStruct = d.itemInfo.itemStruct;
+          } else {
+            itemStruct = findItemStruct(parsed);
           }
           if (parsed.commentList?.comments) {
             commentsRaw = parsed.commentList.comments;
@@ -342,7 +544,7 @@ export async function scrapeVideo(inputUrl) {
   }
 
   // Strategy 2: Googlebot Fallback Engine for VideoObject Schema.org
-  let videoObjectData = null;
+  let videoObjectData: any = null;
   if (!itemStruct && resolvedId) {
     try {
       const botUrl = `https://www.tiktok.com/@tiktok/video/${resolvedId}`;
@@ -357,7 +559,9 @@ export async function scrapeVideo(inputUrl) {
       cookieJar = mergeCookies(cookieJar, extractCookieHeaders(botRes));
       if (botRes.ok) {
         const botHtml = await botRes.text();
-        const voMatch = botHtml.match(/<script[^>]*id="VideoObject"[^>]*>([\s\S]*?)<\/script>/);
+        const voMatch = botHtml.match(
+          /<script[^>]*id="VideoObject"[^>]*>([\s\S]*?)<\/script>/
+        );
         if (voMatch) {
           videoObjectData = JSON.parse(voMatch[1]);
         }
@@ -371,23 +575,19 @@ export async function scrapeVideo(inputUrl) {
     );
   }
 
-  // 1. Check for Photo Post (Slideshow / Carousel)
-  const photoDetails = [];
-  const photos = [];
-
+  // 1. Photos
+  const photoDetails: TikTokPhotoItem[] = [];
+  const photos: string[] = [];
   const rawImages =
-    itemStruct?.imagePost?.images ||
-    itemStruct?.images ||
-    [];
+    itemStruct?.imagePost?.images || itemStruct?.images || [];
 
   if (Array.isArray(rawImages) && rawImages.length > 0) {
-    rawImages.forEach((img, idx) => {
+    rawImages.forEach((img: any, idx: number) => {
       const urlList =
         img.imageURL?.urlList ||
         img.displayImage?.urlList ||
         img.thumbnail?.urlList ||
         (img.url ? [img.url] : []);
-
       const primaryUrl = urlList[0];
       if (primaryUrl) {
         photos.push(primaryUrl);
@@ -404,13 +604,19 @@ export async function scrapeVideo(inputUrl) {
   }
 
   const isPhoto = photos.length > 0;
-  const postType = isPhoto ? 'photo' : 'video';
+  const postType: TikTokPostType = isPhoto ? 'photo' : 'video';
 
-  // 2. Author details
-  const author = {
+  // 2. Author
+  const author: TikTokAuthor = {
     id: String(itemStruct?.author?.id || videoObjectData?.creator?.['@id'] || ''),
-    username: String(itemStruct?.author?.uniqueId || videoObjectData?.creator?.name || ''),
-    nickname: String(itemStruct?.author?.nickname || videoObjectData?.creator?.name || 'TikTok Creator'),
+    username: String(
+      itemStruct?.author?.uniqueId || videoObjectData?.creator?.name || ''
+    ),
+    nickname: String(
+      itemStruct?.author?.nickname ||
+        videoObjectData?.creator?.name ||
+        'TikTok Creator'
+    ),
     avatar: String(
       itemStruct?.author?.avatarLarger ||
         itemStruct?.author?.avatarMedium ||
@@ -422,18 +628,20 @@ export async function scrapeVideo(inputUrl) {
     signature: itemStruct?.author?.signature,
   };
 
-  // 3. Statistics
+  // 3. Stats
   let interactionLikes = 0;
   let interactionComments = 0;
   if (Array.isArray(videoObjectData?.interactionStatistic)) {
     for (const st of videoObjectData.interactionStatistic) {
       const type = st.interactionType?.['@type'] || '';
-      if (type.includes('LikeAction')) interactionLikes = Number(st.userInteractionCount || 0);
-      if (type.includes('CommentAction')) interactionComments = Number(st.userInteractionCount || 0);
+      if (type.includes('LikeAction'))
+        interactionLikes = Number(st.userInteractionCount || 0);
+      if (type.includes('CommentAction'))
+        interactionComments = Number(st.userInteractionCount || 0);
     }
   }
 
-  const stats = {
+  const stats: TikTokStats = {
     views: Number(itemStruct?.stats?.playCount || 0),
     likes: Number(itemStruct?.stats?.diggCount || interactionLikes || 0),
     comments: Number(itemStruct?.stats?.commentCount || interactionComments || 0),
@@ -441,8 +649,8 @@ export async function scrapeVideo(inputUrl) {
     bookmarks: Number(itemStruct?.stats?.collectCount || 0),
   };
 
-  // 4. Bitrates list
-  const bitrates = [];
+  // 4. Bitrates
+  const bitrates: TikTokBitrate[] = [];
   if (Array.isArray(itemStruct?.video?.bitrateInfo)) {
     for (const b of itemStruct.video.bitrateInfo) {
       bitrates.push({
@@ -455,8 +663,8 @@ export async function scrapeVideo(inputUrl) {
     }
   }
 
-  // 5. Subtitles / Closed Captions
-  const subtitles = [];
+  // 5. Subtitles
+  const subtitles: TikTokSubtitle[] = [];
   if (Array.isArray(itemStruct?.video?.subtitleInfos)) {
     for (const sub of itemStruct.video.subtitleInfos) {
       if (sub.Url) {
@@ -472,8 +680,8 @@ export async function scrapeVideo(inputUrl) {
     }
   }
 
-  // 6. Video Media (only populated if postType === 'video')
-  let video;
+  // 6. Video Media
+  let video: TikTokVideoMedia | undefined;
   if (!isPhoto) {
     const playAddr = itemStruct?.video?.playAddr
       ? String(itemStruct.video.playAddr)
@@ -481,7 +689,6 @@ export async function scrapeVideo(inputUrl) {
     const downloadAddr = itemStruct?.video?.downloadAddr
       ? String(itemStruct.video.downloadAddr)
       : playAddr;
-
     const signedApiUrl = videoObjectData?.contentUrl;
     const resolvedPlayUrl = playAddr || signedApiUrl;
 
@@ -506,7 +713,7 @@ export async function scrapeVideo(inputUrl) {
           ? String(itemStruct.video.originCover)
           : undefined,
         playUrl: resolvedPlayUrl,
-        noWatermarkUrl: resolvedPlayUrl, // High-quality stream without watermark
+        noWatermarkUrl: resolvedPlayUrl,
         downloadUrl: downloadAddr || resolvedPlayUrl,
         watermarkUrl: downloadAddr || resolvedPlayUrl,
         signedApiUrl,
@@ -517,8 +724,8 @@ export async function scrapeVideo(inputUrl) {
     }
   }
 
-  // 7. Music soundtrack
-  let music;
+  // 7. Music
+  let music: TikTokMusic | undefined;
   if (itemStruct?.music) {
     music = {
       id: String(itemStruct.music.id || ''),
@@ -537,9 +744,9 @@ export async function scrapeVideo(inputUrl) {
   }
 
   // 8. Comments
-  let comments;
+  let comments: TikTokComment[] | undefined;
   if (commentsRaw.length > 0) {
-    comments = commentsRaw.map((c) => ({
+    comments = commentsRaw.map((c: any) => ({
       cid: String(c.cid || ''),
       text: String(c.text || ''),
       createTime: Number(c.create_time || 0),
@@ -552,20 +759,6 @@ export async function scrapeVideo(inputUrl) {
         avatar: String(c.user?.avatar_thumb?.url_list?.[0] || ''),
       },
     }));
-  } else if (Array.isArray(videoObjectData?.comment)) {
-    comments = videoObjectData.comment.map((c, i) => ({
-      cid: String(i + 1),
-      text: String(c.text || ''),
-      createTime: c.datePublished ? Math.floor(new Date(c.datePublished).getTime() / 1000) : 0,
-      diggCount: Number(c.interactionStatistic?.userInteractionCount || 0),
-      replyCount: 0,
-      user: {
-        id: String(c.author?.url?.split('@')[1] || ''),
-        username: String(c.author?.alternateName || ''),
-        nickname: String(c.author?.name || ''),
-        avatar: '',
-      },
-    }));
   }
 
   const createTime = Number(
@@ -575,12 +768,11 @@ export async function scrapeVideo(inputUrl) {
         : 0)
   );
   const createDate = createTime > 0 ? new Date(createTime * 1000) : new Date();
-
   const description = String(
     itemStruct?.desc || videoObjectData?.description || ''
   );
 
-  const result = {
+  const result: TikTokVideoResult = {
     id: String(itemStruct?.id || resolvedId || ''),
     url: canonicalUrl,
     postType,
@@ -603,125 +795,129 @@ export async function scrapeVideo(inputUrl) {
     comments,
     sessionCookies: cookieJar,
   };
+
   // Direct download helpers bound to current verified session cookies
   if (result.video) {
-    const defaultMediaUrl = result.video.noWatermarkUrl || result.video.playUrl;
-    result.download = (outputPath, options = {}) => {
+    const defaultMediaUrl =
+      result.video.noWatermarkUrl || result.video.playUrl || '';
+    result.download = (outputPath: string, options: DownloadOptions = {}) => {
       let targetUrl = defaultMediaUrl;
-      if (typeof options === 'object' && options !== null && options.quality && Array.isArray(result.video?.bitrates)) {
+      if (options.quality && Array.isArray(result.video?.bitrates)) {
         if (options.quality === 'highest') {
-          const sorted = [...result.video.bitrates].sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+          const sorted = [...result.video.bitrates].sort(
+            (a, b) => (b.bitrate || 0) - (a.bitrate || 0)
+          );
           if (sorted[0]?.url) targetUrl = sorted[0].url;
         } else if (options.quality === 'lowest') {
-          const sorted = [...result.video.bitrates].sort((a, b) => (a.bitrate || 0) - (b.bitrate || 0));
+          const sorted = [...result.video.bitrates].sort(
+            (a, b) => (a.bitrate || 0) - (b.bitrate || 0)
+          );
           if (sorted[0]?.url) targetUrl = sorted[0].url;
         } else {
           const matched = result.video.bitrates.find((b) =>
-            b.gearName?.toLowerCase().includes(String(options.quality).toLowerCase())
+            b.gearName
+              ?.toLowerCase()
+              .includes(String(options.quality).toLowerCase())
           );
           if (matched?.url) targetUrl = matched.url;
         }
       }
       return downloadFile(targetUrl, outputPath, cookieJar);
     };
-    result.downloadBuffer = () =>
-      downloadBuffer(defaultMediaUrl, cookieJar);
+    result.downloadBuffer = () => downloadBuffer(defaultMediaUrl, cookieJar);
   }
+
   if (result.isPhoto && result.photos) {
-    result.downloadPhotos = (outputDir) =>
-      downloadAllPhotos(result.photos, outputDir, cookieJar);
+    result.downloadPhotos = (outputDir: string) =>
+      downloadAllPhotos(result.photos || [], outputDir, cookieJar);
   }
+
   if (result.music?.playUrl) {
-    result.downloadAudio = (outputPath) =>
-      downloadAudio(result.music.playUrl, outputPath, cookieJar);
+    result.downloadAudio = (outputPath: string) =>
+      downloadAudio(result.music!.playUrl!, outputPath, cookieJar);
     result.downloadAudioBuffer = () =>
-      downloadAudioBuffer(result.music.playUrl, cookieJar);
+      downloadAudioBuffer(result.music!.playUrl!, cookieJar);
   }
+
   return result;
 }
 
 /**
- * Scrapes a TikTok user profile directly from tiktok.com
- * @param {string} inputUsername
+ * Scrapes user profile
  */
-export async function scrapeUser(inputUsername) {
-  const clean = String(inputUsername || '')
+export async function scrapeUser(inputUsername: string): Promise<TikTokUserProfile> {
+  const cleanUsername = String(inputUsername || '')
     .trim()
     .replace(/^https?:\/\/(www\.)?tiktok\.com\/@?/, '')
     .replace(/^@+/, '')
     .split('/')[0]
     .split('?')[0];
 
-  if (!clean) {
-    throw new Error(
-      'Please provide a valid TikTok username (e.g. "khaby.lame" or "@mrbeast").'
-    );
-  }
+  if (!cleanUsername) throw new Error('Parameter "inputUsername" is required');
 
-  const url = `https://www.tiktok.com/@${encodeURIComponent(clean)}`;
-  const res = await fetch(url, {
+  const profileUrl = `https://www.tiktok.com/@${cleanUsername}`;
+  const res = await fetch(profileUrl, {
     headers: {
       'User-Agent': MOBILE_USER_AGENT,
       'Accept':
         'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.9',
+      'Referer': 'https://www.tiktok.com/',
     },
+    redirect: 'follow',
   });
 
-  if (!res.ok) {
-    throw new Error(`Failed to fetch user @${clean}: HTTP ${res.status}`);
-  }
-
   const html = await res.text();
-  const match = html.match(
+  const rehydrationMatch = html.match(
     /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/
   );
 
-  if (!match) {
-    throw new Error(
-      `Could not parse user @${clean} data from tiktok.com.`
-    );
+  if (rehydrationMatch) {
+    try {
+      const data = JSON.parse(rehydrationMatch[1]);
+      const userDetail = data['__DEFAULT_SCOPE__']?.['webapp.user-detail'];
+      const userInfo = userDetail?.userInfo;
+      if (userInfo?.user) {
+        const u = userInfo.user;
+        const s = userInfo.stats || {};
+        return {
+          id: String(u.id || ''),
+          uniqueId: String(u.uniqueId || cleanUsername),
+          nickname: String(u.nickname || cleanUsername),
+          avatar: String(
+            u.avatarLarger || u.avatarMedium || u.avatarThumb || ''
+          ),
+          avatarMedium: String(u.avatarMedium || u.avatarThumb || ''),
+          avatarThumb: String(u.avatarThumb || ''),
+          signature: String(u.signature || ''),
+          bioLink: u.bioLink
+            ? { link: u.bioLink.link, risk: u.bioLink.risk }
+            : undefined,
+          verified: Boolean(u.verified),
+          secUid: String(u.secUid || ''),
+          privateAccount: Boolean(u.privateAccount),
+          stats: {
+            followerCount: Number(s.followerCount || 0),
+            followingCount: Number(s.followingCount || 0),
+            heartCount: Number(s.heartCount || s.heart || 0),
+            videoCount: Number(s.videoCount || 0),
+            friendCount: Number(s.friendCount || 0),
+          },
+          shareMeta: userDetail.shareMeta,
+        };
+      }
+    } catch (_) {}
   }
 
-  const data = JSON.parse(match[1]);
-  const userDetail = data['__DEFAULT_SCOPE__']?.['webapp.user-detail'];
-  if (!userDetail?.userInfo?.user) {
-    throw new Error(
-      `TikTok user @${clean} does not exist or is unavailable.`
-    );
-  }
-
-  const u = userDetail.userInfo.user;
-  const s = userDetail.userInfo.stats || {};
-
-  return {
-    id: String(u.id || ''),
-    uniqueId: String(u.uniqueId || clean),
-    nickname: String(u.nickname || clean),
-    avatar: String(u.avatarLarger || u.avatarMedium || u.avatarThumb || ''),
-    avatarMedium: String(u.avatarMedium || u.avatarThumb || ''),
-    avatarThumb: String(u.avatarThumb || ''),
-    signature: String(u.signature || ''),
-    bioLink: u.bioLink,
-    verified: Boolean(u.verified),
-    secUid: String(u.secUid || ''),
-    privateAccount: Boolean(u.privateAccount),
-    stats: {
-      followerCount: Number(s.followerCount || 0),
-      followingCount: Number(s.followingCount || 0),
-      heartCount: Number(s.heartCount || s.heart || 0),
-      videoCount: Number(s.videoCount || 0),
-      friendCount: Number(s.friendCount || 0),
-    },
-    shareMeta: userDetail.shareMeta,
-  };
+  throw new Error(`Could not find profile data for @${cleanUsername}`);
 }
 
 /**
  * Scrapes trending creators, hashtags, and sound tracks directly from tiktok.com
- * @param {'all' | 'creator' | 'hashtag' | 'music'} [category]
  */
-export async function scrapeTrending(category) {
+export async function scrapeTrending(
+  category: 'all' | 'creator' | 'hashtag' | 'music' = 'all'
+): Promise<TikTokTrendingItem[]> {
   const res = await fetch('https://www.tiktok.com/node/share/discover', {
     headers: {
       'User-Agent': DESKTOP_USER_AGENT,
@@ -735,32 +931,33 @@ export async function scrapeTrending(category) {
   }
 
   const json = await res.json();
-  const results = [];
+  const results: TikTokTrendingItem[] = [];
 
   if (Array.isArray(json.body)) {
     for (const group of json.body) {
       if (Array.isArray(group.exploreList)) {
         for (const item of group.exploreList) {
-          const card = item.cardItem;
-          if (!card) continue;
+          const cardItem = item.cardItem || {};
+          let itemType: 'creator' | 'hashtag' | 'music' | 'unknown' = 'unknown';
 
-          let type = 'unknown';
-          if (card.type === 2) type = 'creator';
-          else if (card.type === 3) type = 'hashtag';
-          else if (card.type === 1) type = 'music';
-
-          if (category && category !== 'all' && type !== category) {
-            continue;
+          if (cardItem.subTitle?.startsWith('@') || group.type === 1) {
+            itemType = 'creator';
+          } else if (cardItem.title?.startsWith('#') || group.type === 2) {
+            itemType = 'hashtag';
+          } else if (group.type === 3) {
+            itemType = 'music';
           }
 
-          results.push({
-            type,
-            id: String(card.id || ''),
-            title: String(card.title || ''),
-            subTitle: card.subTitle ? String(card.subTitle) : undefined,
-            desc: card.desc ? String(card.desc) : undefined,
-            cover: card.cover ? String(card.cover) : undefined,
-          });
+          if (category === 'all' || category === itemType) {
+            results.push({
+              type: itemType,
+              id: String(cardItem.id || ''),
+              title: String(cardItem.title || ''),
+              subTitle: cardItem.subTitle,
+              desc: cardItem.desc,
+              cover: cardItem.cover,
+            });
+          }
         }
       }
     }
@@ -770,14 +967,13 @@ export async function scrapeTrending(category) {
 }
 
 /**
- * Scrapes a specific hashtag/challenge from discover list or tag page
- * @param {string} tag
+ * Scrapes hashtag info and total views
  */
-export async function scrapeHashtag(tag) {
-  const cleanTag = String(tag || '').trim().replace(/^#+/, '');
+export async function scrapeHashtag(tag: string): Promise<TikTokHashtagInfo> {
+  const cleanTag = String(tag || '').trim().replace(/^#/, '');
   const trending = await scrapeTrending('hashtag');
   const matched = trending.find(
-    (t) => t.title.toLowerCase().replace(/^#+/, '') === cleanTag.toLowerCase()
+    (h) => h.title.toLowerCase().replace(/^#/, '') === cleanTag.toLowerCase()
   );
 
   if (matched) {
@@ -799,14 +995,16 @@ export async function scrapeHashtag(tag) {
 
 /**
  * Scrapes sound track details
- * @param {string} soundIdOrUrl
  */
-export async function scrapeSound(soundIdOrUrl) {
+export async function scrapeSound(soundIdOrUrl: string): Promise<TikTokSoundInfo> {
   const clean = String(soundIdOrUrl || '')
     .trim()
     .replace(/^https?:\/\/(www\.)?tiktok\.com\/music\/[^\/]+-/, '');
+
   const trending = await scrapeTrending('music');
-  const matched = trending.find((m) => m.id === clean || m.title.toLowerCase().includes(clean.toLowerCase()));
+  const matched = trending.find(
+    (m) => m.id === clean || m.title.toLowerCase().includes(clean.toLowerCase())
+  );
 
   if (matched) {
     return {
@@ -825,23 +1023,21 @@ export async function scrapeSound(soundIdOrUrl) {
 
 /**
  * Streams media buffer directly from TikTok CDN with session cookies and referer headers
- * @param {string} mediaUrl
- * @param {string} [cookieStr]
- * @param {string} [rangeHeader]
- * @param {string} [userAgent]
  */
 export async function fetchMediaStream(
-  mediaUrl,
+  mediaUrl: string,
   cookieStr = '',
-  rangeHeader,
+  rangeHeader?: string,
   userAgent = MOBILE_USER_AGENT
-) {
-  const headers = {
+): Promise<Response> {
+  if (!mediaUrl) throw new Error('Parameter "mediaUrl" is required');
+
+  const headers: Record<string, string> = {
     'User-Agent': userAgent,
     'Referer': 'https://www.tiktok.com/',
     'Accept': '*/*',
+    'Accept-Language': 'en-US,en;q=0.9',
   };
-
   if (cookieStr) {
     headers['Cookie'] = cookieStr;
   }
@@ -854,7 +1050,6 @@ export async function fetchMediaStream(
     redirect: 'follow',
   });
 
-  // Intelligent fallback: TikTok CDN (Akamai) frequently demands Range: bytes=0- on stream requests
   if (res.status === 403 && !rangeHeader) {
     headers['Range'] = 'bytes=0-';
     const retryRes = await fetch(mediaUrl, {
@@ -871,11 +1066,12 @@ export async function fetchMediaStream(
 
 /**
  * Downloads a video, audio, or photo file directly to local disk with session cookies
- * @param {string} mediaUrl
- * @param {string} outputPath
- * @param {string} [cookieStr]
  */
-export async function downloadFile(mediaUrl, outputPath, cookieStr = '') {
+export async function downloadFile(
+  mediaUrl: string,
+  outputPath: string,
+  cookieStr = ''
+): Promise<string> {
   if (!mediaUrl) throw new Error('Parameter "mediaUrl" is required');
   if (!outputPath) throw new Error('Parameter "outputPath" is required');
 
@@ -894,6 +1090,7 @@ export async function downloadFile(mediaUrl, outputPath, cookieStr = '') {
 
   const fileStream = fs.createWriteStream(outputPath);
   if (res.body) {
+    // @ts-expect-error Node Readable.fromWeb web-stream typing
     await pipeline(Readable.fromWeb(res.body), fileStream);
   } else {
     throw new Error('Response body was empty');
@@ -903,17 +1100,20 @@ export async function downloadFile(mediaUrl, outputPath, cookieStr = '') {
 }
 
 /**
- * Downloads media into an in-memory Node Buffer (useful for bots and cloud storage)
- * @param {string} mediaUrl
- * @param {string} [cookieStr]
- * @returns {Promise<Buffer>}
+ * Downloads media into an in-memory Node Buffer
  */
-export async function downloadBuffer(mediaUrl, cookieStr = '') {
+export async function downloadBuffer(
+  mediaUrl: string,
+  cookieStr = ''
+): Promise<Buffer> {
   if (!mediaUrl) throw new Error('Parameter "mediaUrl" is required');
 
   const res = await fetchMediaStream(mediaUrl, cookieStr);
   if (!res.ok) {
-    throw new Error(`Failed to download media buffer: HTTP ${res.status}`);
+    throw new Error(
+      `Failed to download media buffer: HTTP ${res.status} (${res.statusText || 'Forbidden'}). ` +
+      `Ensure sessionCookies match the video URL signature.`
+    );
   }
 
   const arrayBuffer = await res.arrayBuffer();
@@ -922,22 +1122,23 @@ export async function downloadBuffer(mediaUrl, cookieStr = '') {
 
 /**
  * Downloads a single photo from a slideshow
- * @param {string} photoUrl
- * @param {string} outputPath
- * @param {string} [cookieStr]
  */
-export async function downloadPhoto(photoUrl, outputPath, cookieStr = '') {
+export async function downloadPhoto(
+  photoUrl: string,
+  outputPath: string,
+  cookieStr = ''
+): Promise<string> {
   return downloadFile(photoUrl, outputPath, cookieStr);
 }
 
 /**
  * Downloads all photos from a TikTok photo carousel/slideshow to a target directory
- * @param {string[]} photoUrls Array of photo URLs
- * @param {string} outputDir Target directory path
- * @param {string} [cookieStr]
- * @returns {Promise<string[]>} Array of saved file paths
  */
-export async function downloadAllPhotos(photoUrls, outputDir, cookieStr = '') {
+export async function downloadAllPhotos(
+  photoUrls: string[],
+  outputDir: string,
+  cookieStr = ''
+): Promise<string[]> {
   if (!Array.isArray(photoUrls) || photoUrls.length === 0) {
     throw new Error('Parameter "photoUrls" must be a non-empty array');
   }
@@ -947,7 +1148,7 @@ export async function downloadAllPhotos(photoUrls, outputDir, cookieStr = '') {
     fs.mkdirSync(resolvedDir, { recursive: true });
   }
 
-  const savedPaths = [];
+  const savedPaths: string[] = [];
   for (let i = 0; i < photoUrls.length; i++) {
     const filename = `photo_${String(i + 1).padStart(2, '0')}.jpg`;
     const targetPath = path.join(resolvedDir, filename);
@@ -958,36 +1159,35 @@ export async function downloadAllPhotos(photoUrls, outputDir, cookieStr = '') {
   return savedPaths;
 }
 
-
 /**
  * Downloads audio soundtrack from TikTok media directly to local MP3 file
- * @param {string} audioUrl
- * @param {string} outputPath
- * @param {string} [cookieStr]
- * @returns {Promise<string>}
  */
-export async function downloadAudio(audioUrl, outputPath, cookieStr = '') {
+export async function downloadAudio(
+  audioUrl: string,
+  outputPath: string,
+  cookieStr = ''
+): Promise<string> {
   return downloadFile(audioUrl, outputPath, cookieStr);
 }
 
 /**
  * Downloads audio soundtrack into an in-memory Node Buffer
- * @param {string} audioUrl
- * @param {string} [cookieStr]
- * @returns {Promise<Buffer>}
  */
-export async function downloadAudioBuffer(audioUrl, cookieStr = '') {
+export async function downloadAudioBuffer(
+  audioUrl: string,
+  cookieStr = ''
+): Promise<Buffer> {
   return downloadBuffer(audioUrl, cookieStr);
 }
 
 /**
  * Downloads multiple TikTok videos or photos in batch with progress notifications
- * @param {string[]} urls
- * @param {string} [outputDir="./downloads"]
- * @param {{ quality?: string; onProgress?: (info: any) => void; delayMs?: number }} [options]
- * @returns {Promise<Array<{ url: string; success: boolean; id?: string; postType?: string; path?: string; error?: string }>>}
  */
-export async function batchDownload(urls, outputDir = './downloads', options = {}) {
+export async function batchDownload(
+  urls: string[],
+  outputDir = './downloads',
+  options: BatchDownloadOptions = {}
+): Promise<BatchItemResult[]> {
   if (!Array.isArray(urls) || urls.length === 0) {
     throw new Error('Parameter "urls" must be a non-empty array of TikTok URLs');
   }
@@ -996,7 +1196,7 @@ export async function batchDownload(urls, outputDir = './downloads', options = {
     fs.mkdirSync(resolvedDir, { recursive: true });
   }
 
-  const results = [];
+  const results: BatchItemResult[] = [];
   const delayMs = typeof options.delayMs === 'number' ? options.delayMs : 300;
 
   for (let i = 0; i < urls.length; i++) {
@@ -1010,24 +1210,48 @@ export async function batchDownload(urls, outputDir = './downloads', options = {
     try {
       const post = await scrapeVideo(rawUrl);
       if (post.isPhoto && post.photos && post.photos.length > 0) {
-        const photoSubdir = path.join(resolvedDir, 'photos_' + post.id);
-        const saved = await post.downloadPhotos(photoSubdir);
-        const item = { url: rawUrl, success: true, id: post.id, postType: 'photo', path: photoSubdir, count: saved.length };
+        const photoSubdir = path.join(resolvedDir, `photos_${post.id}`);
+        const saved = post.downloadPhotos
+          ? await post.downloadPhotos(photoSubdir)
+          : await downloadAllPhotos(post.photos, photoSubdir, post.sessionCookies);
+        const item: BatchItemResult = {
+          url: rawUrl,
+          success: true,
+          id: post.id,
+          postType: 'photo',
+          path: photoSubdir,
+          count: saved.length,
+        };
         results.push(item);
         if (typeof options.onProgress === 'function') {
           options.onProgress({ current: i + 1, total: urls.length, item });
         }
       } else if (post.video) {
-        const filePath = path.join(resolvedDir, post.id + '_clean.mp4');
-        await post.download(filePath, options);
-        const item = { url: rawUrl, success: true, id: post.id, postType: 'video', path: filePath };
+        const filePath = path.join(resolvedDir, `${post.id}_clean.mp4`);
+        if (post.download) {
+          await post.download(filePath, options);
+        } else {
+          const streamUrl = post.video.noWatermarkUrl || post.video.playUrl || '';
+          await downloadFile(streamUrl, filePath, post.sessionCookies);
+        }
+        const item: BatchItemResult = {
+          url: rawUrl,
+          success: true,
+          id: post.id,
+          postType: 'video',
+          path: filePath,
+        };
         results.push(item);
         if (typeof options.onProgress === 'function') {
           options.onProgress({ current: i + 1, total: urls.length, item });
         }
       }
-    } catch (err) {
-      const failItem = { url: rawUrl, success: false, error: err.message };
+    } catch (err: any) {
+      const failItem: BatchItemResult = {
+        url: rawUrl,
+        success: false,
+        error: err.message,
+      };
       results.push(failItem);
       if (typeof options.onProgress === 'function') {
         options.onProgress({ current: i + 1, total: urls.length, error: err.message });
@@ -1036,21 +1260,3 @@ export async function batchDownload(urls, outputDir = './downloads', options = {
   }
   return results;
 }
-
-export default {
-  scrapeVideo,
-  scrapeUser,
-  scrapeTrending,
-  scrapeHashtag,
-  scrapeSound,
-  downloadFile,
-  downloadBuffer,
-  downloadPhoto,
-  downloadAllPhotos,
-  downloadAudio,
-  downloadAudioBuffer,
-  batchDownload,
-  parseTikTokUrl,
-  resolveUrl,
-  fetchMediaStream,
-};
