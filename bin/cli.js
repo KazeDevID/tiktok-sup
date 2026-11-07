@@ -1,13 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * tiktok-sup CLI
+ * tiktok-sup CLI (v1.1.0)
  * Command line tool for scraping TikTok without 3rd party APIs
  */
 
-import { scrapeVideo, scrapeUser, scrapeTrending } from '../index.js';
-import fs from 'fs';
-import path from 'path';
+import {
+  scrapeVideo,
+  scrapeUser,
+  scrapeTrending,
+  scrapeHashtag,
+  scrapeSound,
+  downloadFile,
+} from '../index.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -16,18 +21,21 @@ const target = args[1];
 async function main() {
   if (!command || command === '--help' || command === '-h') {
     console.log(`
-tiktok-sup - Pure TikTok Web Scraper for Node.js (tiktok.com only)
+@kazedevid/tiktok-sup - Pure TikTok Web Scraper for Node.js (tiktok.com only)
 
 Usage:
-  npx tiktok-sup video <url>            Scrape full video metadata, audio & stream links
-  npx tiktok-sup user <username>        Scrape user profile and statistics
-  npx tiktok-sup trending               List trending creators, hashtags and music
-  npx tiktok-sup download <url> [out]   Download video MP4 to file
+  npx @kazedevid/tiktok-sup video <url|id>          Scrape video metadata, no-watermark MP4 & audio
+  npx @kazedevid/tiktok-sup user <username>         Scrape user profile and statistics
+  npx @kazedevid/tiktok-sup trending [category]     List trending creators, hashtags or music
+  npx @kazedevid/tiktok-sup hashtag <tag>           Scrape hashtag info and views
+  npx @kazedevid/tiktok-sup sound <id|title>        Scrape audio track details
+  npx @kazedevid/tiktok-sup download <url> [out]    Download no-watermark MP4 to file
 
 Examples:
-  npx tiktok-sup video https://www.tiktok.com/@zachking/video/6768504823336815877
-  npx tiktok-sup user khaby.lame
-  npx tiktok-sup download https://vt.tiktok.com/ZS... ./myvideo.mp4
+  npx @kazedevid/tiktok-sup video 6768504823336815877
+  npx @kazedevid/tiktok-sup user mrbeast
+  npx @kazedevid/tiktok-sup hashtag fyp
+  npx @kazedevid/tiktok-sup download "https://vt.tiktok.com/..." ./myvideo.mp4
 `);
     process.exit(0);
   }
@@ -35,10 +43,10 @@ Examples:
   try {
     if (command === 'video') {
       if (!target) {
-        console.error('Error: Please provide a TikTok video URL.');
+        console.error('Error: Please provide a TikTok video URL or ID.');
         process.exit(1);
       }
-      console.log(`Scraping video from ${target} directly from tiktok.com...`);
+      console.log(`Scraping video ${target} directly from tiktok.com...`);
       const data = await scrapeVideo(target);
       console.log(JSON.stringify(data, null, 2));
     } else if (command === 'user') {
@@ -50,12 +58,27 @@ Examples:
       const data = await scrapeUser(target);
       console.log(JSON.stringify(data, null, 2));
     } else if (command === 'trending') {
-      console.log('Fetching trending creators, hashtags and music from tiktok.com...');
-      const data = await scrapeTrending();
+      const cat = args[1] || 'all';
+      console.log(`Fetching trending items (${cat}) from tiktok.com...`);
+      const data = await scrapeTrending(cat);
+      console.log(JSON.stringify(data, null, 2));
+    } else if (command === 'hashtag') {
+      if (!target) {
+        console.error('Error: Please provide a hashtag name.');
+        process.exit(1);
+      }
+      const data = await scrapeHashtag(target);
+      console.log(JSON.stringify(data, null, 2));
+    } else if (command === 'sound') {
+      if (!target) {
+        console.error('Error: Please provide a sound ID or name.');
+        process.exit(1);
+      }
+      const data = await scrapeSound(target);
       console.log(JSON.stringify(data, null, 2));
     } else if (command === 'download') {
       if (!target) {
-        console.error('Error: Please provide a TikTok video URL.');
+        console.error('Error: Please provide a TikTok video URL or ID.');
         process.exit(1);
       }
       console.log(`Resolving stream URL for ${target}...`);
@@ -68,23 +91,12 @@ Examples:
 
       const outFile = args[2] || `${data.id || 'tiktok_video'}.mp4`;
       console.log(`Downloading stream to ${outFile}...`);
-      const res = await fetch(streamUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15',
-          'Referer': 'https://www.tiktok.com/',
-          ...(data.sessionCookies ? { Cookie: data.sessionCookies } : {}),
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error(`Download failed: HTTP ${res.status}`);
-      }
-
-      const buffer = Buffer.from(await res.arrayBuffer());
-      fs.writeFileSync(path.resolve(outFile), buffer);
-      console.log(`Saved ${buffer.length} bytes to ${outFile}!`);
+      await downloadFile(streamUrl, outFile, data.sessionCookies);
+      console.log(`Saved successfully to ${outFile}!`);
     } else {
-      console.error(`Unknown command: "${command}". Run "tiktok-sup --help" for instructions.`);
+      console.error(
+        `Unknown command: "${command}". Run "@kazedevid/tiktok-sup --help" for instructions.`
+      );
       process.exit(1);
     }
   } catch (err) {

@@ -16,6 +16,14 @@ export interface TikTokStats {
   bookmarks: number;
 }
 
+export interface TikTokBitrate {
+  gearName?: string;
+  bitrate?: number;
+  qualityType?: number;
+  codecType?: string;
+  url?: string;
+}
+
 export interface TikTokVideoMedia {
   id: string;
   duration: number;
@@ -25,7 +33,10 @@ export interface TikTokVideoMedia {
   cover: string;
   dynamicCover?: string;
   playUrl?: string;
+  noWatermarkUrl?: string;
   downloadUrl?: string;
+  watermarkUrl?: string;
+  bitrates?: TikTokBitrate[];
   format?: string;
 }
 
@@ -102,32 +113,77 @@ export interface TikTokTrendingItem {
   cover?: string;
 }
 
+export interface TikTokHashtagInfo {
+  id: string;
+  title: string;
+  views?: string;
+  desc?: string;
+  cover?: string;
+}
+
+export interface TikTokSoundInfo {
+  id: string;
+  title: string;
+  author?: string;
+  playUrl?: string;
+  cover?: string;
+  duration?: number;
+}
+
 export declare function parseTikTokUrl(inputUrl: string): {
   videoId?: string;
   username?: string;
   isShort: boolean;
+  isPhoto: boolean;
+  normalizedUrl: string;
 };
 
 export declare function resolveUrl(inputUrl: string): Promise<{
   canonicalUrl: string;
   cookies: string;
+  videoId?: string;
 }>;
 
 export declare function scrapeVideo(inputUrl: string): Promise<TikTokVideoResult>;
 
 export declare function scrapeUser(inputUsername: string): Promise<TikTokUserProfile>;
 
-export declare function scrapeTrending(): Promise<TikTokTrendingItem[]>;
+export declare function scrapeTrending(
+  category?: 'all' | 'creator' | 'hashtag' | 'music'
+): Promise<TikTokTrendingItem[]>;
 
-export declare function fetchMediaStream(mediaUrl: string, cookieStr?: string): Promise<Response>;
+export declare function scrapeHashtag(tag: string): Promise<TikTokHashtagInfo>;
+
+export declare function scrapeSound(soundIdOrUrl: string): Promise<TikTokSoundInfo>;
+
+export declare function fetchMediaStream(
+  mediaUrl: string,
+  cookieStr?: string,
+  rangeHeader?: string
+): Promise<Response>;
+
+export declare function downloadBuffer(
+  mediaUrl: string,
+  cookieStr?: string
+): Promise<Buffer>;
+
+export declare function downloadFile(
+  mediaUrl: string,
+  outputPath: string,
+  cookieStr?: string
+): Promise<string>;
 
 declare const _default: {
   scrapeVideo: typeof scrapeVideo;
   scrapeUser: typeof scrapeUser;
   scrapeTrending: typeof scrapeTrending;
+  scrapeHashtag: typeof scrapeHashtag;
+  scrapeSound: typeof scrapeSound;
   parseTikTokUrl: typeof parseTikTokUrl;
   resolveUrl: typeof resolveUrl;
   fetchMediaStream: typeof fetchMediaStream;
+  downloadBuffer: typeof downloadBuffer;
+  downloadFile: typeof downloadFile;
 };
 
 export default _default;
