@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * tiktok-sup CLI (v1.2.0)
+ * tiktok-sup CLI (v1.3.0)
  * Command line tool for scraping TikTok without 3rd party APIs
  */
 
@@ -13,6 +13,8 @@ import {
   scrapeSound,
   downloadFile,
   downloadAllPhotos,
+  downloadAudio,
+  batchDownload,
 } from '../index.js';
 
 const args = process.argv.slice(2);
@@ -33,6 +35,8 @@ Usage:
   npx @kazedevid/tiktok-sup sound <id|title>        Scrape audio track details
   npx @kazedevid/tiktok-sup download <url> [out]    Download no-watermark MP4 to file
   npx @kazedevid/tiktok-sup download-photos <url>   Download all photos from a slideshow
+  npx @kazedevid/tiktok-sup audio <url> [out.mp3]   Extract and download audio track (MP3)
+  npx @kazedevid/tiktok-sup batch <u1,u2,...> [dir] Batch download multiple videos/photos
 
 Examples:
   npx @kazedevid/tiktok-sup video 6768504823336815877
@@ -107,6 +111,38 @@ Examples:
       console.log(`Downloading stream to ${outFile}...`);
       await downloadFile(streamUrl, outFile, data.sessionCookies);
       console.log(`Saved successfully to ${outFile}!`);
+    } else if (command === 'audio') {
+      if (!target) {
+        console.error('Error: Please provide a TikTok video or photo URL.');
+        process.exit(1);
+      }
+      console.log(`Fetching audio for ${target}...`);
+      const data = await scrapeVideo(target);
+      if (!data.music?.playUrl) {
+        console.error('No audio soundtrack found for this post.');
+        process.exit(1);
+      }
+      const outFile = args[2] || `${data.id}_audio.mp3`;
+      console.log(`Downloading audio (${data.music.title}) to ${outFile}...`);
+      await downloadAudio(data.music.playUrl, outFile, data.sessionCookies);
+      console.log(`Saved audio soundtrack successfully to ${outFile}!`);
+    } else if (command === 'batch') {
+      if (!target) {
+        console.error('Error: Please provide comma-separated TikTok URLs or a file path.');
+        process.exit(1);
+      }
+      let urlList = [];
+      if (fs.existsSync(target)) {
+        urlList = fs.readFileSync(target, 'utf-8').split(/\r?\n/).map(u => u.trim()).filter(Boolean);
+      } else {
+        urlList = target.split(',').map(u => u.trim()).filter(Boolean);
+      }
+      const outDir = args[2] || './batch_downloads';
+      console.log(`Batch downloading ${urlList.length} items to ${outDir}...`);
+      const results = await batchDownload(urlList, outDir, {
+        onProgress: (p) => console.log(`[${p.current}/${p.total}] ${p.item ? (p.item.success ? "✓ Saved " + p.item.id : "✗ " + p.item.error) : ""}`)
+      });
+      console.log(`Batch download complete: ${results.filter(r => r.success).length}/${results.length} succeeded.`);
     } else if (command === 'download-photos') {
       if (!target) {
         console.error('Error: Please provide a TikTok photo URL or ID.');

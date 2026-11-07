@@ -1,6 +1,26 @@
 /**
- * TypeScript Declarations for @kazedevid/tiktok-sup v1.2.2
+ * TypeScript Declarations for @kazedevid/tiktok-sup v1.3.0
  */
+
+
+export interface DownloadOptions {
+  quality?: "highest" | "lowest" | "original" | "1080p" | "720p" | "540p" | string;
+}
+
+export interface BatchItemResult {
+  url: string;
+  success: boolean;
+  id?: string;
+  postType?: "video" | "photo";
+  path?: string;
+  count?: number;
+  error?: string;
+}
+
+export interface BatchDownloadOptions extends DownloadOptions {
+  onProgress?: (progress: { current: number; total: number; item?: BatchItemResult; error?: string }) => void;
+  delayMs?: number;
+}
 
 export type TikTokPostType = 'video' | 'photo';
 
@@ -106,9 +126,11 @@ export interface TikTokVideoResult {
   music?: TikTokMusic;
   comments?: TikTokComment[];
   sessionCookies?: string;
-  download?: (outputPath: string) => Promise<string>;
+  download?: (outputPath: string, options?: DownloadOptions) => Promise<string>;
   downloadBuffer?: () => Promise<Buffer>;
   downloadPhotos?: (outputDir: string) => Promise<string[]>;
+  downloadAudio?: (outputPath: string) => Promise<string>;
+  downloadAudioBuffer?: () => Promise<Buffer>;
 }
 
 export interface TikTokUserProfile {
@@ -225,6 +247,24 @@ export function downloadAllPhotos(
   cookieStr?: string
 ): Promise<string[]>;
 
+
+export function downloadAudio(
+  audioUrl: string,
+  outputPath: string,
+  cookieStr?: string
+): Promise<string>;
+
+export function downloadAudioBuffer(
+  audioUrl: string,
+  cookieStr?: string
+): Promise<Buffer>;
+
+export function batchDownload(
+  urls: string[],
+  outputDir?: string,
+  options?: BatchDownloadOptions
+): Promise<BatchItemResult[]>;
+
 declare const _default: {
   scrapeVideo: typeof scrapeVideo;
   scrapeUser: typeof scrapeUser;
@@ -235,6 +275,9 @@ declare const _default: {
   downloadBuffer: typeof downloadBuffer;
   downloadPhoto: typeof downloadPhoto;
   downloadAllPhotos: typeof downloadAllPhotos;
+  downloadAudio: typeof downloadAudio;
+  downloadAudioBuffer: typeof downloadAudioBuffer;
+  batchDownload: typeof batchDownload;
   parseTikTokUrl: typeof parseTikTokUrl;
   resolveUrl: typeof resolveUrl;
   fetchMediaStream: typeof fetchMediaStream;

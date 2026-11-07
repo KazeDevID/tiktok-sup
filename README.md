@@ -170,6 +170,22 @@ npx @kazedevid/tiktok-sup hashtag fyp
 
 ---
 
+
+---
+
+## 🛠️ What's New in v1.3.0
+
+- 🎵 **Dedicated Audio Track Extractor & Downloader**:
+  - `await post.downloadAudio("soundtrack.mp3")` — Extract and download clean background music / sound stream.
+  - `await post.downloadAudioBuffer()` — In-memory audio buffer for bot voice messages or transcription.
+  - `downloadAudio(soundUrl, outputPath, cookieStr)` helper.
+  - CLI command: `npx @kazedevid/tiktok-sup audio <url> [out.mp3]`.
+- 📦 **Batch Downloader Helper**:
+  - `await batchDownload(urls, outputDir, { onProgress })` — Automatically downloads lists of TikTok video and photo posts in batch with progress callbacks.
+  - CLI command: `npx @kazedevid/tiktok-sup batch <url1,url2,...> [dir]`.
+- 🎚️ **Quality & Bitrate Gear Selection**:
+  - `await post.download("video.mp4", { quality: "highest" | "1080p" | "720p" })`.
+
 ## 🛠️ What's New in v1.2.2
 
 - 🐛 **Fixed "Could not locate TikTok post data" on Mobile Reflow & Photo Posts**:

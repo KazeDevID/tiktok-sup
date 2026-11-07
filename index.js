@@ -606,14 +606,36 @@ export async function scrapeVideo(inputUrl) {
   // Direct download helpers bound to current verified session cookies
   if (result.video) {
     const defaultMediaUrl = result.video.noWatermarkUrl || result.video.playUrl;
-    result.download = (outputPath) =>
-      downloadFile(defaultMediaUrl, outputPath, cookieJar);
+    result.download = (outputPath, options = {}) => {
+      let targetUrl = defaultMediaUrl;
+      if (typeof options === 'object' && options !== null && options.quality && Array.isArray(result.video?.bitrates)) {
+        if (options.quality === 'highest') {
+          const sorted = [...result.video.bitrates].sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+          if (sorted[0]?.url) targetUrl = sorted[0].url;
+        } else if (options.quality === 'lowest') {
+          const sorted = [...result.video.bitrates].sort((a, b) => (a.bitrate || 0) - (b.bitrate || 0));
+          if (sorted[0]?.url) targetUrl = sorted[0].url;
+        } else {
+          const matched = result.video.bitrates.find((b) =>
+            b.gearName?.toLowerCase().includes(String(options.quality).toLowerCase())
+          );
+          if (matched?.url) targetUrl = matched.url;
+        }
+      }
+      return downloadFile(targetUrl, outputPath, cookieJar);
+    };
     result.downloadBuffer = () =>
       downloadBuffer(defaultMediaUrl, cookieJar);
   }
   if (result.isPhoto && result.photos) {
     result.downloadPhotos = (outputDir) =>
       downloadAllPhotos(result.photos, outputDir, cookieJar);
+  }
+  if (result.music?.playUrl) {
+    result.downloadAudio = (outputPath) =>
+      downloadAudio(result.music.playUrl, outputPath, cookieJar);
+    result.downloadAudioBuffer = () =>
+      downloadAudioBuffer(result.music.playUrl, cookieJar);
   }
   return result;
 }
@@ -936,6 +958,85 @@ export async function downloadAllPhotos(photoUrls, outputDir, cookieStr = '') {
   return savedPaths;
 }
 
+
+/**
+ * Downloads audio soundtrack from TikTok media directly to local MP3 file
+ * @param {string} audioUrl
+ * @param {string} outputPath
+ * @param {string} [cookieStr]
+ * @returns {Promise<string>}
+ */
+export async function downloadAudio(audioUrl, outputPath, cookieStr = '') {
+  return downloadFile(audioUrl, outputPath, cookieStr);
+}
+
+/**
+ * Downloads audio soundtrack into an in-memory Node Buffer
+ * @param {string} audioUrl
+ * @param {string} [cookieStr]
+ * @returns {Promise<Buffer>}
+ */
+export async function downloadAudioBuffer(audioUrl, cookieStr = '') {
+  return downloadBuffer(audioUrl, cookieStr);
+}
+
+/**
+ * Downloads multiple TikTok videos or photos in batch with progress notifications
+ * @param {string[]} urls
+ * @param {string} [outputDir="./downloads"]
+ * @param {{ quality?: string; onProgress?: (info: any) => void; delayMs?: number }} [options]
+ * @returns {Promise<Array<{ url: string; success: boolean; id?: string; postType?: string; path?: string; error?: string }>>}
+ */
+export async function batchDownload(urls, outputDir = './downloads', options = {}) {
+  if (!Array.isArray(urls) || urls.length === 0) {
+    throw new Error('Parameter "urls" must be a non-empty array of TikTok URLs');
+  }
+  const resolvedDir = path.resolve(outputDir);
+  if (!fs.existsSync(resolvedDir)) {
+    fs.mkdirSync(resolvedDir, { recursive: true });
+  }
+
+  const results = [];
+  const delayMs = typeof options.delayMs === 'number' ? options.delayMs : 300;
+
+  for (let i = 0; i < urls.length; i++) {
+    const rawUrl = String(urls[i] || '').trim();
+    if (!rawUrl) continue;
+
+    if (i > 0 && delayMs > 0) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
+    try {
+      const post = await scrapeVideo(rawUrl);
+      if (post.isPhoto && post.photos && post.photos.length > 0) {
+        const photoSubdir = path.join(resolvedDir, 'photos_' + post.id);
+        const saved = await post.downloadPhotos(photoSubdir);
+        const item = { url: rawUrl, success: true, id: post.id, postType: 'photo', path: photoSubdir, count: saved.length };
+        results.push(item);
+        if (typeof options.onProgress === 'function') {
+          options.onProgress({ current: i + 1, total: urls.length, item });
+        }
+      } else if (post.video) {
+        const filePath = path.join(resolvedDir, post.id + '_clean.mp4');
+        await post.download(filePath, options);
+        const item = { url: rawUrl, success: true, id: post.id, postType: 'video', path: filePath };
+        results.push(item);
+        if (typeof options.onProgress === 'function') {
+          options.onProgress({ current: i + 1, total: urls.length, item });
+        }
+      }
+    } catch (err) {
+      const failItem = { url: rawUrl, success: false, error: err.message };
+      results.push(failItem);
+      if (typeof options.onProgress === 'function') {
+        options.onProgress({ current: i + 1, total: urls.length, error: err.message });
+      }
+    }
+  }
+  return results;
+}
+
 export default {
   scrapeVideo,
   scrapeUser,
@@ -946,6 +1047,9 @@ export default {
   downloadBuffer,
   downloadPhoto,
   downloadAllPhotos,
+  downloadAudio,
+  downloadAudioBuffer,
+  batchDownload,
   parseTikTokUrl,
   resolveUrl,
   fetchMediaStream,
